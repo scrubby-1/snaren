@@ -392,6 +392,18 @@ function refKg(r, b){
   if (b.metingen.length) return kgOf(r, b, sortedM(b)[0].freq);
   return null;
 }
+const lastB = r => r && r.bespanningen.length ? r.bespanningen[r.bespanningen.length-1] : null;
+const rLabel = r => r.bijnaam ? r.bijnaam : r.naam;
+const sameFrame = (a, c) => a.id !== c.id && (a.merk || "") === (c.merk || "") && a.naam === c.naam && a.balhoofd === c.balhoofd && a.patroon === c.patroon;
+const sameString = (a, c) => a.materiaal === c.materiaal && Math.abs(a.dikte - c.dikte) < 0.005;
+// Other rackets of the same model whose current stringing can share this calibration
+function siblings(r, b){
+  return state.rackets.filter(x => sameFrame(r, x)).map(x => ({r:x, b:lastB(x)})).filter(x => x.b && sameString(b, x.b));
+}
+function copyCal(src, srcR, dst){
+  dst.k = src.k; dst.kFreq = src.kFreq;
+  dst.kVan = {racket:rLabel(srcR), datum:new Date().toISOString().slice(0,10)};
+}
 const disp = kg => state.unit === "lbs" ? kg * 2.20462 : kg;
 const fmt = kg => kg == null ? "–" : disp(kg).toFixed(1);
 function status(loss){
@@ -608,7 +620,7 @@ function renderScale(r, b, kg){
 }
 function renderMeter(){
   const {r, b} = cur(), {f, used} = tapInfo(), kg = kgOf(r, b, f);
-  $("m-mode").textContent = !r ? "Geen racket" : !b ? "Geen bespanning" : b.k ? "Gekalibreerd" : "Schatting";
+  $("m-mode").textContent = !r ? "Geen racket" : !b ? "Geen bespanning" : b.k ? (b.kVan ? "Gekalibreerd via " + b.kVan.racket : "Gekalibreerd") : "Schatting";
   $("m-value").textContent = f && kg != null ? fmt(kg) : "–";
   $("m-unit").textContent = state.unit;
   $("m-sub").textContent = f
@@ -643,11 +655,28 @@ function renderBesp(){
   const stats = `<div class="stats">
       <div class="stat"><b>${ago}</b><span>${ago === 1 ? "dag" : "dagen"} oud</span></div>
       <div class="stat"><b>${lastKg != null ? fmt(lastKg) : "–"}</b><span>laatste (${state.unit})</span></div>
-      <div class="stat ${st ? st.cls : ""}"><b>${loss != null ? loss.toFixed(0) + "%" : "–"}</b><span>verlies</span></div></div>`;
+      <div class="stat ${st ? st.cls : ""}"><b>${loss != null ? loss.toFixed(0) + "%" : "–"}</b><span>${b.k && b.machineKg ? "verlies" : "sinds 1e meting"}</span></div></div>`;
   let cal;
-  if (!b.machineKg) cal = `<div class="cal">${icon("target")}<div><p class="note">Vul de spanning van de bespanning in via Bewerken om te kunnen kalibreren.</p></div></div>`;
-  else if (b.k) cal = `<div class="cal">${icon("target")}<div><p class="note">Gekalibreerd op ${b.kFreq.toFixed(0)} Hz. Metingen tonen de spanning in dezelfde maat als je machine-instelling.</p><div class="row"><button class="btn small" id="btn-cal" type="button">Opnieuw kalibreren</button><button class="btn small ghost" id="btn-uncal" type="button">Kalibratie wissen</button></div></div></div>`;
-  else cal = `<div class="cal">${icon("target")}<div><p class="note">Meet meteen na het bespannen en kalibreer. Daarna toont de app de spanning in dezelfde maat als je machine-instelling.</p><div class="row"><button class="btn small primary" id="btn-cal" type="button">Kalibreer met huidige meting</button></div></div></div>`;
+  const sib = siblings(r, b);
+  const snaarNote = xs => xs.some(x => (x.b.snaar || "").trim().toLowerCase() !== (b.snaar || "").trim().toLowerCase())
+    ? `<p class="note">Let op: niet elke snaarnaam is dezelfde. Neem de kalibratie alleen over als het echt dezelfde snaar is.</p>` : "";
+  if (b.k && b.kVan){
+    cal = `<div class="cal">${icon("target")}<div><p class="note">Kalibratie overgenomen van ${esc(b.kVan.racket)} (zelfde racket en snaar). Waarden staan in dezelfde maat als je machine-instelling.</p>
+      <div class="row">${b.machineKg ? `<button class="btn small" id="btn-cal" type="button">Zelf kalibreren</button>` : ""}<button class="btn small ghost" id="btn-uncal" type="button">Kalibratie wissen</button></div></div></div>`;
+  } else if (b.k){
+    const targets = sib.filter(x => !(x.b.k && !x.b.kVan));
+    cal = `<div class="cal">${icon("target")}<div><p class="note">Gekalibreerd op ${b.kFreq.toFixed(0)} Hz. Metingen tonen de spanning in dezelfde maat als je machine-instelling.</p>
+      ${targets.length ? `<p class="note"><b>Ook toepassen op:</b> ${targets.map(x => esc(rLabel(x.r))).join(", ")}</p>${snaarNote(targets)}` : ""}
+      <div class="row">${targets.length ? `<button class="btn small primary" id="btn-cal-share" type="button">Toepassen op ${targets.length === 1 ? "dit racket" : "deze " + targets.length}</button>` : ""}
+      ${b.machineKg ? `<button class="btn small" id="btn-cal" type="button">Opnieuw kalibreren</button>` : ""}<button class="btn small ghost" id="btn-uncal" type="button">Kalibratie wissen</button></div></div></div>`;
+  } else {
+    const src = sib.filter(x => x.b.k && !x.b.kVan);
+    const take = src.length ? `<p class="note">Of neem de kalibratie over van een identiek racket met dezelfde snaar.</p>${snaarNote(src)}
+      <div class="row">${src.map(x => `<button class="btn small" type="button" data-take="${x.r.id}">Overnemen van ${esc(rLabel(x.r))}</button>`).join("")}</div>` : "";
+    cal = b.machineKg
+      ? `<div class="cal">${icon("target")}<div><p class="note">Meet meteen na het bespannen en kalibreer. Daarna toont de app de spanning in dezelfde maat als je machine-instelling.</p><div class="row"><button class="btn small primary" id="btn-cal" type="button">Kalibreer met huidige meting</button></div>${take}</div></div>`
+      : `<div class="cal">${icon("target")}<div><p class="note">Vul de spanning van de bespanning in via Bewerken om zelf te kalibreren.</p>${take}</div></div>`;
+  }
   el.innerHTML = head + `<div class="card-head"><span class="lbl">Huidige bespanning</span>
       <div class="row"><button class="btn small ghost" id="btn-edit-besp" type="button">Bewerken</button><button class="btn small" id="btn-new-besp" type="button">Nieuwe bespanning</button></div></div>
     ${stats}
@@ -680,11 +709,22 @@ function bindBesp(){
   on("btn-cal", () => {
     const {b} = cur(), {f} = tapInfo();
     if (!f || !b.machineKg) return;
-    b.k = b.machineKg / (f * f); b.kFreq = f;
+    b.k = b.machineKg / (f * f); b.kFreq = f; delete b.kVan;
+    siblings(cur().r, b).forEach(x => { if (x.b.kVan) copyCal(b, cur().r, x.b); });
     b.metingen.push({id:uid(), datum:new Date().toISOString(), freq:f});
     taps = []; save(); renderAll(); flash("Gekalibreerd en meting opgeslagen.");
   });
-  on("btn-uncal", () => { const {b} = cur(); delete b.k; delete b.kFreq; save(); renderAll(); });
+  on("btn-uncal", () => { const {b} = cur(); delete b.k; delete b.kFreq; delete b.kVan; save(); renderAll(); });
+  on("btn-cal-share", () => {
+    const {r, b} = cur(), targets = siblings(r, b).filter(x => !(x.b.k && !x.b.kVan));
+    targets.forEach(x => copyCal(b, r, x.b));
+    save(); renderAll(); flash("Kalibratie toegepast op " + targets.map(x => rLabel(x.r)).join(", ") + ".");
+  });
+  document.querySelectorAll("#card-besp [data-take]").forEach(btn => btn.onclick = () => {
+    const {b} = cur(), srcR = state.rackets.find(x => x.id === btn.dataset.take), src = lastB(srcR);
+    if (!src || !src.k) return;
+    copyCal(src, srcR, b); save(); renderAll(); flash("Kalibratie overgenomen van " + rLabel(srcR) + ".");
+  });
 }
 function confirmBtn(btn, txt, fn){
   if (btn.dataset.armed){ fn(); return; }
@@ -800,8 +840,8 @@ function openBespForm(edit){
     const vals = {datum:$("b-datum").value, snaar:$("b-snaar").value.trim(), materiaal:$("b-mat").value, dikte:+$("b-dikte").value, machineKg:kgv ? +kgv : null};
     const {r} = cur();
     if (edit){
-      if (vals.machineKg && b.kFreq && vals.machineKg !== b.machineKg) b.k = vals.machineKg / (b.kFreq * b.kFreq);
-      if (!vals.machineKg){ delete b.k; delete b.kFreq; }
+      if (vals.machineKg && b.kFreq && !b.kVan && vals.machineKg !== b.machineKg) b.k = vals.machineKg / (b.kFreq * b.kFreq);
+      if (!vals.machineKg && !b.kVan){ delete b.k; delete b.kFreq; }
       Object.assign(b, vals);
     } else r.bespanningen.push(Object.assign({id:uid(), metingen:[]}, vals));
     save(); closeForm(); renderAll();
