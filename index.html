@@ -1,0 +1,1032 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0F2440">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Snaarmeter">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+<title>Snaarmeter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@500&family=Source+Sans+3:wght@400;600;700&display=swap">
+<style>
+:root{
+  --bg:#EDF1F6; --surface:#FFFFFF; --surface-2:#F5F8FB; --ink:#14202E; --muted:#5A6878; --line:#D6DEE8;
+  --accent:#1F4F8A; --accent-ink:#FFFFFF; --accent-soft:rgba(31,79,138,.10);
+  --ball:#D9EC4C; --ball-ink:#1B2410;
+  --meter:#0F2440; --meter-2:#18385F; --meter-ink:#EEF3F9; --meter-muted:#9DB0C8; --string:rgba(238,243,249,.30); --frame:#E6ECF4;
+  --ok:#2C8A56; --warn:#B27A0C; --bad:#BC3E2B;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Source Sans 3",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,Consolas,monospace;
+  --shadow:0 1px 2px rgba(20,32,46,.06),0 4px 16px rgba(20,32,46,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    color-scheme:dark;
+    --bg:#0A111B; --surface:#121C29; --surface-2:#172333; --ink:#E4EBF3; --muted:#93A3B6; --line:#233246;
+    --accent:#86ADE2; --accent-ink:#0A1627; --accent-soft:rgba(134,173,226,.14);
+    --meter:#0B1B30; --meter-2:#13304F;
+    --ok:#52B880; --warn:#E3A93D; --bad:#E86C52;
+    --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --bg:#0A111B; --surface:#121C29; --surface-2:#172333; --ink:#E4EBF3; --muted:#93A3B6; --line:#233246;
+  --accent:#86ADE2; --accent-ink:#0A1627; --accent-soft:rgba(134,173,226,.14);
+  --meter:#0B1B30; --meter-2:#13304F;
+  --ok:#52B880; --warn:#E3A93D; --bad:#E86C52;
+  --shadow:none;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 var(--body);padding-inline:16px;padding-block:14px 48px;-webkit-font-smoothing:antialiased}
+.app{max-width:540px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+h1,h2,h3{font-family:var(--display);font-weight:700;letter-spacing:.01em;text-wrap:balance;margin:0}
+h1{font-size:26px;line-height:1}
+h2{font-size:22px;line-height:1.1}
+.lbl{font-size:12px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700}
+.muted{color:var(--muted)}
+svg.i{width:18px;height:18px;flex:none;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* header */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:center;gap:10px}
+.brand svg{width:28px;height:34px}
+.icon-btn{width:40px;height:40px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer}
+.icon-btn:hover{border-color:var(--accent)}
+
+/* racket switcher */
+.switch{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+.switch::-webkit-scrollbar{display:none}
+.rchip{flex:none;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;text-align:left;font:inherit;max-width:220px}
+.rchip b{font-weight:700;font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.rchip span{font:500 11px var(--mono);color:var(--muted)}
+.rchip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft);box-shadow:inset 0 0 0 1px var(--accent)}
+.rchip.add{justify-content:center;flex-direction:row;align-items:center;gap:6px;border-style:dashed;color:var(--accent);font-weight:700}
+
+/* meter */
+.meter{position:relative;overflow:hidden;border-radius:18px;padding:16px 18px 18px;color:var(--meter-ink);
+  background:radial-gradient(120% 90% at 20% 0%,var(--meter-2),var(--meter) 70%);display:flex;flex-direction:column;gap:12px}
+.meter::after{content:"";position:absolute;inset:auto -40px -60px auto;width:220px;height:220px;border-radius:50%;border:1px solid rgba(238,243,249,.06);pointer-events:none}
+.meter-top{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;min-height:28px}
+.meter .lbl{color:var(--meter-muted)}
+.meter-main{display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:center}
+#head{width:clamp(84px,24vw,112px);height:auto;display:block}
+#head .frame{fill:none;stroke:var(--frame);stroke-width:5}
+#head .throat{fill:none;stroke:var(--frame);stroke-width:4;stroke-linecap:round}
+#head .str{stroke:var(--string);stroke-width:.9}
+#head .spot{fill:var(--ball);transition:r .08s linear}
+.ripple{fill:none;stroke:var(--ball);stroke-width:1.6;transform-box:fill-box;transform-origin:center;animation:rip .95s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes rip{from{transform:scale(.06);opacity:1}to{transform:scale(1.25);opacity:0}}
+.read{min-width:0}
+.readout{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 6px;font-family:var(--display);font-weight:700;line-height:.85}
+#m-value{font-size:clamp(58px,17vw,92px);font-variant-numeric:tabular-nums;letter-spacing:-.015em}
+.unit{font-size:26px;color:var(--ball);font-weight:600}
+.meter-sub{font:500 12px/1.45 var(--mono);color:var(--meter-muted);margin-top:8px}
+
+.scale{display:flex;flex-direction:column;gap:6px}
+.track{position:relative;height:10px;border-radius:5px;background:rgba(238,243,249,.10)}
+.zone{position:absolute;top:0;bottom:0}
+.zone.z-bad{background:rgba(232,108,82,.55);border-radius:5px 0 0 5px}
+.zone.z-warn{background:rgba(227,169,61,.55)}
+.zone.z-ok{background:rgba(82,184,128,.55);border-radius:0 5px 5px 0}
+.reftick{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--meter-ink);opacity:.7;transform:translateX(-1px)}
+.marker{position:absolute;top:50%;width:18px;height:18px;border-radius:50%;background:var(--ball);border:3px solid var(--meter);transform:translate(-50%,-50%);box-shadow:0 0 0 2px var(--ball);transition:left .35s cubic-bezier(.2,.7,.3,1)}
+.scale-labels{display:flex;justify-content:space-between;font:500 11px var(--mono);color:var(--meter-muted);font-variant-numeric:tabular-nums}
+.taps{display:flex;gap:6px;flex-wrap:wrap}
+.tap{font:500 12px/1 var(--mono);padding:6px 8px;border-radius:6px;background:rgba(238,243,249,.10);color:var(--meter-ink)}
+.tap.out{opacity:.4;text-decoration:line-through}
+.meter-msg{margin:0;font-size:14px;line-height:1.4;color:var(--ball);max-width:60ch}
+.chip{display:inline-flex;align-items:center;gap:6px;font:700 13px/1 var(--body);padding:6px 10px;border-radius:999px}
+.chip::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor}
+.chip.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.chip.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 14%,transparent)}
+.chip.bad{color:var(--bad);background:color-mix(in srgb,var(--bad) 14%,transparent)}
+.meter .chip.ok{color:#7EE0A7;background:rgba(126,224,167,.14)}
+.meter .chip.warn{color:#F4C366;background:rgba(244,195,102,.14)}
+.meter .chip.bad{color:#FF9A83;background:rgba(255,154,131,.14)}
+
+/* actions */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font:700 15px/1 var(--body);padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--ink);cursor:pointer;min-height:46px;text-align:center}
+.btn:hover:not(:disabled){border-color:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.small{min-height:36px;padding:8px 12px;font-size:14px}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--bad)}
+.listen{min-height:58px;font-size:17px;border-radius:14px}
+.listen.live{background:var(--ball);border-color:var(--ball);color:var(--ball-ink)}
+.dot{width:10px;height:10px;border-radius:50%;background:currentColor;display:none}
+.listen.live .dot{display:block;animation:pulse 1.2s ease-in-out infinite}
+.listen.live .i{display:none}
+@keyframes pulse{50%{opacity:.25}}
+.actions{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.actions .btn{flex-direction:column;gap:6px;font-size:13px;min-height:64px;padding:10px 6px}
+.demo{background:none;border:0;padding:0;color:var(--accent);font:600 14px var(--body);cursor:pointer;text-decoration:underline;text-underline-offset:3px;align-self:center}
+:is(button,input,select,textarea,.btn,label.btn):focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* cards */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:14px;box-shadow:var(--shadow)}
+.card-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--surface-2);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:2px;min-width:0}
+.stat b{font:700 26px/1 var(--display);font-variant-numeric:tabular-nums}
+.stat span{font-size:12px;color:var(--muted)}
+.stat.ok b{color:var(--ok)} .stat.warn b{color:var(--warn)} .stat.bad b{color:var(--bad)}
+dl.facts{display:grid;grid-template-columns:auto 1fr;gap:7px 16px;margin:0;font-size:15px}
+dl.facts dt{color:var(--muted)}
+dl.facts dd{margin:0;font-weight:600;overflow-wrap:anywhere}
+.note{font-size:14px;color:var(--muted);margin:0;max-width:65ch}
+.badge{font:700 11px/1 var(--body);text-transform:uppercase;letter-spacing:.08em;padding:4px 6px;border-radius:4px;background:var(--accent-soft);color:var(--accent);vertical-align:2px}
+.cal{display:flex;gap:12px;align-items:flex-start;background:var(--surface-2);border-radius:10px;padding:12px}
+.cal .i{margin-top:2px;color:var(--accent)}
+.cal div{display:flex;flex-direction:column;gap:8px}
+
+.chart-wrap{overflow-x:auto}
+.chart-wrap svg{display:block;width:100%;height:auto;min-width:280px}
+.ax{font:11px var(--mono);fill:var(--muted)}
+.grid-l{stroke:var(--line);stroke-width:1}
+.ref-l{stroke:var(--muted);stroke-width:1;stroke-dasharray:4 4}
+.series{stroke:var(--accent);stroke-width:2.5;fill:none;stroke-linejoin:round;stroke-linecap:round}
+.area{fill:url(#areaGrad)}
+.pt{fill:var(--surface);stroke:var(--accent);stroke-width:2}
+.pt.last{fill:var(--accent)}
+.val{font:600 13px var(--mono);fill:var(--ink)}
+ul.list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+ul.list li{display:grid;grid-template-columns:1fr auto auto auto;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+ul.list .mono{font:500 12px var(--mono);color:var(--muted)}
+ul.list .kg{font-weight:700;min-width:4.6em;text-align:right}
+.x{background:none;border:0;color:var(--muted);cursor:pointer;padding:6px;border-radius:6px;display:grid;place-items:center}
+.x:hover{color:var(--bad);background:var(--surface-2)}
+
+/* forms */
+form{display:flex;flex-direction:column;gap:14px}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label,.field .flabel{font-size:14px;font-weight:700}
+.hint{font-size:13px;color:var(--muted)}
+select,input,textarea{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-height:44px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:380px){.grid2{grid-template-columns:1fr}}
+.search{position:relative}
+.search .i{position:absolute;left:12px;top:13px;color:var(--muted)}
+.search input{padding-left:38px}
+.results{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:10px;overflow:hidden;max-height:300px;overflow-y:auto}
+.results button{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;background:var(--surface);border:0;border-top:1px solid var(--line);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.results button:first-child{border-top:0}
+.results button:hover,.results button:focus-visible{background:var(--accent-soft)}
+.results .spec{font:500 12px var(--mono);color:var(--muted);white-space:nowrap}
+.results .brand-n{color:var(--muted);font-size:13px}
+.picked{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--accent-soft);border-radius:10px;padding:10px 12px}
+.picked b{display:block}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;align-self:flex-start}
+.seg button{border:0;background:transparent;color:var(--ink);font:700 14px var(--body);padding:9px 18px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+textarea{min-height:90px;font:12px/1.4 var(--mono)}
+details.tips summary{cursor:pointer;font:700 20px var(--display);list-style:none;display:flex;justify-content:space-between;align-items:center}
+details.tips summary::-webkit-details-marker{display:none}
+details.tips summary::after{content:"+";font-size:24px;color:var(--muted)}
+details.tips[open] summary::after{content:"–"}
+details.tips ul{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;max-width:65ch}
+.stack{display:flex;flex-direction:column;gap:14px}
+.top-r{display:flex;align-items:center;gap:10px}
+.sync{font:500 11px var(--mono);color:var(--muted);text-align:right}
+.sync.err{color:var(--bad)}
+.viewseg{align-self:stretch;display:grid;grid-template-columns:1fr 1fr}
+.viewseg button{padding:10px}
+.auth-intro{display:flex;flex-direction:column;gap:6px}
+.auth .seg{align-self:stretch;display:grid;grid-template-columns:1fr 1fr}
+.auth-msg{font-size:14px;margin:0}
+.auth-msg.err{color:var(--bad)} .auth-msg.ok{color:var(--ok)}
+.sum{display:flex;gap:8px;flex-wrap:wrap}
+.stu{border-top:1px solid var(--line)}
+.stu:first-child{border-top:0}
+.stu summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:1fr auto;gap:4px 10px;align-items:center;padding:12px 0}
+.stu summary::-webkit-details-marker{display:none}
+.stu summary b{font-size:16px}
+.stu summary .muted{font-size:13px;grid-column:1}
+.stu summary .chip{grid-row:1 / span 2;grid-column:2}
+.stu-r{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 12px;margin-bottom:8px;background:var(--surface-2);border-radius:10px}
+.stu-r .kg{font:700 20px/1 var(--display);text-align:right;font-variant-numeric:tabular-nums}
+.stu-r .muted{font-size:13px}
+@media (prefers-reduced-motion:reduce){.ripple,.listen.live .dot{animation:none}.ripple{opacity:0}.marker{transition:none}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-mic" viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24"><path d="M9 18V6l10-2v12"/><circle cx="6" cy="18" r="3"/><circle cx="16" cy="16" r="3"/></symbol>
+  <symbol id="i-save" viewBox="0 0 24 24"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M4 7h11a5 5 0 0 1 0 10H8"/><path d="M8 3 4 7l4 4"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 1v4M12 19v4M1 12h4M19 12h4"/></symbol>
+</svg>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <svg viewBox="0 0 28 34" aria-hidden="true"><ellipse cx="14" cy="12" rx="11" ry="11" fill="none" stroke="var(--accent)" stroke-width="2.5"/><path d="M9 4v16M14 1.5v21M19 4v16M4 8h20M3.5 13h21M5 18h18" stroke="var(--accent)" stroke-width="1" opacity=".55"/><path d="M11 23l3 10 3-10" fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linejoin="round"/></svg>
+      <h1>Snaarmeter</h1>
+    </div>
+    <div class="top-r"><span class="sync" id="sync" aria-live="polite"></span><button class="icon-btn" id="btn-settings" type="button" aria-label="Instellingen"><svg class="i"><use href="#i-gear"/></svg></button></div>
+  </header>
+
+  <div class="seg viewseg" id="viewseg" role="group" aria-label="Weergave" hidden><button type="button" data-v="mine" aria-pressed="true">Mijn rackets</button><button type="button" data-v="coach" aria-pressed="false">Leerlingen</button></div>
+  <section class="card" id="panel-settings" hidden></section>
+  <section class="card auth" id="auth" hidden></section>
+  <section class="stack" id="coach" hidden></section>
+
+  <div class="stack" id="mine">
+  <nav class="switch" id="switch" aria-label="Je rackets"></nav>
+
+  <section class="meter" id="meter" aria-live="polite">
+    <div class="meter-top"><span class="lbl" id="m-mode">Schatting</span><span id="m-chip"></span></div>
+    <div class="meter-main">
+      <svg id="head" viewBox="0 0 120 176" aria-hidden="true"></svg>
+      <div class="read">
+        <div class="readout"><span id="m-value">–</span><span class="unit" id="m-unit">kg</span></div>
+        <div class="meter-sub" id="m-sub">Tik 3 tot 5 keer op het midden van het snarenbed</div>
+      </div>
+    </div>
+    <div class="scale" id="m-scale"></div>
+    <div class="taps" id="m-taps"></div>
+    <p class="meter-msg" id="m-msg" hidden></p>
+  </section>
+
+  <button id="btn-listen" class="btn primary listen" type="button"><svg class="i"><use href="#i-mic"/></svg><span class="dot"></span><span id="listen-txt">Start luisteren</span></button>
+  <div class="actions">
+    <label class="btn" for="file-audio"><svg class="i"><use href="#i-file"/></svg>Opname kiezen</label>
+    <input type="file" id="file-audio" accept="audio/*" hidden>
+    <button id="btn-save" class="btn" type="button" disabled><svg class="i"><use href="#i-save"/></svg>Opslaan</button>
+    <button id="btn-clear" class="btn" type="button" disabled><svg class="i"><use href="#i-undo"/></svg>Wissen</button>
+  </div>
+  <button id="btn-demo" class="demo" type="button">Test met een gesimuleerde tik</button>
+
+  <section class="card" id="panel-form" hidden></section>
+  <section class="card" id="card-besp"></section>
+  <section class="card" id="card-history">
+    <div class="card-head"><h2>Verloop</h2><span class="lbl" id="h-sub"></span></div>
+    <div class="chart-wrap" id="chart"></div>
+    <ul class="list" id="list"></ul>
+  </section>
+
+  <details class="card tips">
+    <summary>Tips voor een goede meting</summary>
+    <ul>
+      <li>Haal de demper uit het snarenbed en meet in een stille ruimte.</li>
+      <li>Houd de gsm 5 tot 10 cm boven het midden van het snarenbed.</li>
+      <li>Tik steeds op dezelfde plek, met een vingernagel of de rand van een ander racket.</li>
+      <li>Meet meteen na het bespannen en kalibreer met de spanning van de machine. Vanaf dan toont de app de spanning in dezelfde maat als je bespanning.</li>
+      <li>Zonder kalibratie is de waarde een schatting (ongeveer ±2 à 3 kg). Het verloop over de dagen is wel betrouwbaar.</li>
+      <li>Werkt de microfoon niet, neem dan een spraakmemo op met 3 tot 5 tikken en kies die via "Opname kiezen".</li>
+    </ul>
+  </details>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
+<script src="/config.js"></script>
+<script>
+(function(){
+"use strict";
+const LS = "snaarmeter.v1";
+const C_EST = 6.15;   // empirical stringbed constant (≈21 kg at 560 Hz, 100 sq in, polyester 1.25)
+const DENS = {poly:1350, multi:1140, gut:1300, hybride:1300};
+const MAT = {poly:"Polyester", multi:"Multifilament", gut:"Darm", hybride:"Hybride"};
+const PATTERNS = ["16x19","16x20","16x18","16x17","18x19","18x20"];
+// Recent-generation specs: [brand, model, head size (sq in), pattern]
+const RACKETS = [
+  ["Babolat","Pure Aero 100",100,"16x19"],["Babolat","Pure Aero 98",98,"16x20"],["Babolat","Pure Aero Team",100,"16x19"],
+  ["Babolat","Pure Drive 100",100,"16x19"],["Babolat","Pure Drive 98",98,"16x19"],["Babolat","Pure Drive Team",100,"16x19"],["Babolat","Pure Drive Lite",100,"16x19"],
+  ["Babolat","Pure Strike 98 16x19",98,"16x19"],["Babolat","Pure Strike 98 18x20",98,"18x20"],["Babolat","Pure Strike 100",100,"16x19"],
+  ["Wilson","Blade 98 16x19",98,"16x19"],["Wilson","Blade 98 18x20",98,"18x20"],["Wilson","Blade 100",100,"16x19"],["Wilson","Blade 104",104,"18x19"],
+  ["Wilson","Clash 100",100,"16x19"],["Wilson","Clash 98",98,"16x20"],
+  ["Wilson","Pro Staff 97",97,"16x19"],["Wilson","Pro Staff RF97",97,"16x19"],["Wilson","Pro Staff X",100,"16x19"],
+  ["Wilson","Ultra 100",100,"16x19"],["Wilson","Ultra 108",108,"16x19"],["Wilson","Shift 99",99,"16x20"],["Wilson","Shift 99 Pro",99,"18x20"],["Wilson","Burn 100",100,"16x19"],
+  ["Head","Speed MP",100,"16x19"],["Head","Speed Pro",100,"18x20"],["Head","Speed Team",100,"16x19"],
+  ["Head","Radical MP",98,"16x19"],["Head","Radical Pro",98,"16x19"],
+  ["Head","Gravity MP",100,"16x20"],["Head","Gravity Pro",100,"18x20"],
+  ["Head","Prestige MP",99,"18x19"],["Head","Prestige Pro",95,"16x19"],
+  ["Head","Extreme MP",100,"16x19"],["Head","Extreme Tour",98,"16x19"],["Head","Boom MP",100,"16x19"],["Head","Instinct MP",100,"16x19"],
+  ["Yonex","EZONE 100",100,"16x19"],["Yonex","EZONE 98",98,"16x19"],
+  ["Yonex","VCORE 100",100,"16x19"],["Yonex","VCORE 98",98,"16x19"],["Yonex","VCORE 95",95,"16x20"],
+  ["Yonex","Percept 97",97,"16x19"],["Yonex","Percept 100",100,"16x19"],["Yonex","Percept 97D",97,"18x20"],
+  ["Tecnifibre","TF40 315 16x19",98,"16x19"],["Tecnifibre","TF40 315 18x20",98,"18x20"],["Tecnifibre","TF40 305 16x19",98,"16x19"],["Tecnifibre","TF40 305 18x20",98,"18x20"],["Tecnifibre","TF40 290 16x19",98,"16x19"],
+  ["Tecnifibre","TFight 315S",98,"16x19"],["Tecnifibre","TFight 305S",98,"18x19"],["Tecnifibre","TFight 300S",98,"16x19"],["Tecnifibre","TFight 300S IG",98,"16x19"],
+  ["Tecnifibre","TFight 300",100,"16x19"],["Tecnifibre","TFight 300 IG",100,"16x19"],["Tecnifibre","TFight 285",100,"16x19"],["Tecnifibre","TFight 270",100,"16x19"],["Tecnifibre","TFight 255",100,"16x19"],
+  ["Tecnifibre","TFight Blue 305S",98,"18x19"],["Tecnifibre","TFight Blue 300",100,"16x19"],
+  ["Tecnifibre","Fire 305S",98,"16x19"],["Tecnifibre","Fire 300",100,"16x19"],["Tecnifibre","Fire 285",100,"16x19"],["Tecnifibre","Fire 270",100,"16x19"],["Tecnifibre","Fire 255",100,"16x19"],["Tecnifibre","Fire 260 OS",110,"16x19"],
+  ["Tecnifibre","TF-X1 300",100,"16x19"],["Tecnifibre","TF-X1 285",100,"16x19"],["Tecnifibre","TF-X1 270",100,"16x19"],
+  ["Tecnifibre","Tempo 298 Iga",98,"16x19"],["Tecnifibre","Tempo 285",100,"16x19"],["Tecnifibre","Tempo 270",100,"16x19"],
+  ["Dunlop","CX 200",98,"16x19"],["Dunlop","CX 200 LS",98,"16x19"],["Dunlop","CX 200 OS",105,"16x19"],["Dunlop","CX 200 Tour 16x19",95,"16x19"],["Dunlop","CX 200 Tour 18x20",95,"18x20"],
+  ["Dunlop","CX 400",100,"16x19"],["Dunlop","CX 400 Tour",100,"16x19"],["Dunlop","CX Team 100",100,"16x19"],
+  ["Dunlop","SX 300 Tour",98,"16x19"],["Dunlop","SX 300",100,"16x19"],["Dunlop","SX 300 LS",100,"16x19"],["Dunlop","SX 300 Lite",100,"16x19"],
+  ["Dunlop","FX 500 Tour",98,"16x19"],["Dunlop","FX 500",100,"16x19"],["Dunlop","FX 500 LS",100,"16x19"],["Dunlop","FX 500 Lite",100,"16x19"],["Dunlop","FX 500 Super Lite",100,"16x19"],["Dunlop","FX 700",107,"16x18"],
+  ["Dunlop","LX 800 Tour",110,"16x18"],["Dunlop","LX 800",110,"16x18"],["Dunlop","LX 1000",115,"16x18"],["Dunlop","LX Team",107,"16x17"],
+  ["Prince","Phantom 100X",100,"18x20"]
+];
+const $ = id => document.getElementById(id);
+const uid = () => Math.random().toString(36).slice(2,10);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const icon = (id, cls = "i") => `<svg class="${cls}"><use href="#i-${id}"/></svg>`;
+function isoDay(d){ const z = new Date(d); z.setMinutes(z.getMinutes()-z.getTimezoneOffset()); return z.toISOString().slice(0,10); }
+function daysAgo(n){ const d = new Date(); d.setDate(d.getDate()-n); d.setHours(18,0,0,0); return d; }
+const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- data ---------- */
+function sample(){
+  const rid = uid();
+  const b = {id:uid(), datum:isoDay(daysAgo(12)), snaar:"Polyester 1.25", materiaal:"poly", dikte:1.25, machineKg:23, k:23/(575*575), kFreq:575,
+    metingen:[[12,575],[11,552],[9,545],[5,538],[0,532]].map(([a,f]) => ({id:uid(), datum:daysAgo(a).toISOString(), freq:f}))};
+  return {unit:"kg", sel:rid, rackets:[{id:rid, voorbeeld:true, merk:"Babolat", naam:"Pure Aero 100", bijnaam:"Voorbeeld", balhoofd:100, patroon:"16x19", bespanningen:[b]}]};
+}
+function load(){ try { const s = JSON.parse(localStorage.getItem(LS)); if (s && Array.isArray(s.rackets)) return s; } catch(e){} return sample(); }
+const CFG = window.SNAAR_CONFIG || {};
+const CLOUD_CFG = !!(CFG.supabaseUrl && CFG.supabaseKey);
+let sb = null, me = null, students = null, view = "mine", pushTimer = null, dirty = false;
+const emptyState = () => ({unit:"kg", sel:null, rackets:[]});
+const storeKey = () => me ? LS + ":" + me.id : LS;
+let state = CLOUD_CFG ? emptyState() : load();
+function save(){
+  try { localStorage.setItem(storeKey(), JSON.stringify(state)); } catch(e){}
+  if (sb && me){ dirty = true; clearTimeout(pushTimer); setSync("Opslaan…"); pushTimer = setTimeout(pushCloud, 800); }
+}
+function setSync(t, err){ const e = $("sync"); e.textContent = t; e.classList.toggle("err", !!err); }
+async function pushCloud(){
+  if (!sb || !me) return;
+  clearTimeout(pushTimer);
+  const {error} = await sb.from("userdata").upsert({user_id:me.id, state, updated_at:new Date().toISOString()});
+  if (error){ setSync("Offline, probeert opnieuw", true); pushTimer = setTimeout(pushCloud, 15000); }
+  else { dirty = false; setSync("Opgeslagen"); }
+}
+window.addEventListener("online", () => { if (dirty) pushCloud(); });
+function cur(){
+  const r = state.rackets.find(x => x.id === state.sel) || state.rackets[0] || null;
+  const b = r && r.bespanningen.length ? r.bespanningen[r.bespanningen.length-1] : null;
+  return {r, b};
+}
+const rTitle = r => (r.merk ? r.merk + " " : "") + r.naam;
+
+/* ---------- physics ---------- */
+const mu = b => DENS[b.materiaal] * Math.PI * Math.pow(b.dikte/2000, 2);
+function kgOf(r, b, f){
+  if (!r || !b || !f) return null;
+  if (b.k) return b.k * f * f;
+  return C_EST * mu(b) * f * f * r.balhoofd * 0.00064516 / 9.80665;
+}
+const sortedM = b => b.metingen.slice().sort((a,c) => new Date(a.datum) - new Date(c.datum));
+function refKg(r, b){
+  if (!b) return null;
+  if (b.k && b.machineKg) return b.machineKg;
+  if (b.metingen.length) return kgOf(r, b, sortedM(b)[0].freq);
+  return null;
+}
+const disp = kg => state.unit === "lbs" ? kg * 2.20462 : kg;
+const fmt = kg => kg == null ? "–" : disp(kg).toFixed(1);
+function status(loss){
+  if (loss == null) return null;
+  if (loss < 10) return {cls:"ok", txt:"Goed"};
+  if (loss < 20) return {cls:"warn", txt:"Let op"};
+  return {cls:"bad", txt:"Herbespannen"};
+}
+const daysSince = (b, iso) => (new Date(iso) - new Date(b.datum + "T00:00:00")) / 864e5;
+
+/* ---------- signal analysis ---------- */
+function fft(re, im){
+  const n = re.length;
+  for (let i = 1, j = 0; i < n; i++){
+    let bit = n >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j){ let t = re[i]; re[i] = re[j]; re[j] = t; t = im[i]; im[i] = im[j]; im[j] = t; }
+  }
+  for (let size = 2; size <= n; size <<= 1){
+    const half = size >> 1, ang = -2 * Math.PI / size, wr = Math.cos(ang), wi = Math.sin(ang);
+    for (let s = 0; s < n; s += size){
+      let cr = 1, ci = 0;
+      for (let k = 0; k < half; k++){
+        const a = s + k, b = a + half;
+        const tr = re[b]*cr - im[b]*ci, ti = re[b]*ci + im[b]*cr;
+        re[b] = re[a] - tr; im[b] = im[a] - ti; re[a] += tr; im[a] += ti;
+        const nr = cr*wr - ci*wi; ci = cr*wi + ci*wr; cr = nr;
+      }
+    }
+  }
+}
+function analyze(samples, sr){
+  const fr = Math.max(1, Math.round(sr * 0.005)), nF = Math.floor(samples.length / fr);
+  if (nF < 12) return null;
+  let p = 0, pe = 0;
+  for (let k = 0; k < nF; k++){ let e = 0; for (let i = k*fr; i < (k+1)*fr; i++) e += samples[i]*samples[i]; if (e > pe){ pe = e; p = k; } }
+  if (Math.sqrt(pe / fr) < 0.004) return null;
+  const start = (p + 2) * fr, len = Math.min(Math.round(sr * 0.3), samples.length - start);
+  if (len < sr * 0.05) return null;
+  const N = 32768, re = new Float64Array(N), im = new Float64Array(N);
+  for (let i = 0; i < len; i++) re[i] = samples[start+i] * (0.5 - 0.5*Math.cos(2*Math.PI*i/(len-1)));
+  fft(re, im);
+  const lo = Math.ceil(300 * N / sr), hi = Math.floor(1100 * N / sr), db = new Float64Array(hi - lo + 1);
+  let best = 0;
+  for (let i = lo; i <= hi; i++){ db[i-lo] = 10*Math.log10(re[i]*re[i] + im[i]*im[i] + 1e-20); if (db[i-lo] > db[best]) best = i - lo; }
+  if (best === 0 || best === db.length - 1) return null;
+  const y0 = db[best-1], y1 = db[best], y2 = db[best+1], den = y0 - 2*y1 + y2;
+  const delta = den ? 0.5 * (y0 - y2) / den : 0;
+  const med = Array.from(db).sort((a,b) => a-b)[db.length >> 1];
+  if (y1 - med < 10) return null;
+  return {freq:(lo + best + delta) * sr / N};
+}
+
+/* ---------- taps ---------- */
+let taps = [];
+function median(a){ const s = a.slice().sort((x,y) => x-y), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m-1] + s[m]) / 2; }
+function tapInfo(){
+  if (!taps.length) return {f:null, used:[]};
+  const md = median(taps), used = taps.map(f => Math.abs(f - md) / md <= 0.04), vals = taps.filter((_, i) => used[i]);
+  return {f:vals.reduce((a,b) => a+b, 0) / vals.length, used};
+}
+function addTap(f){ taps.push(f); if (taps.length > 8) taps.shift(); ripple(); renderMeter(); }
+let msgTimer;
+function flash(t){ const m = $("m-msg"); m.textContent = t; m.hidden = false; clearTimeout(msgTimer); msgTimer = setTimeout(() => m.hidden = true, 5500); }
+
+/* ---------- racket head drawing ---------- */
+let headGeo = {cx:60, cy:64, rx:44, ry:56};
+function renderHead(r){
+  const svg = $("head");
+  const size = r ? r.balhoofd : 100;
+  const [M, C] = (r ? r.patroon : "16x19").split("x").map(Number);
+  const rx = 44 * Math.sqrt(size / 100), ry = rx * 1.27, cx = 60, cy = 8 + ry + 2;
+  headGeo = {cx, cy, rx, ry};
+  let s = `<defs><clipPath id="bed"><ellipse cx="${cx}" cy="${cy}" rx="${rx-2.5}" ry="${ry-2.5}"/></clipPath></defs><g clip-path="url(#bed)">`;
+  for (let i = 1; i <= M; i++){ const x = cx - rx + i * (2*rx) / (M+1); s += `<line class="str" x1="${x.toFixed(2)}" x2="${x.toFixed(2)}" y1="${cy-ry}" y2="${cy+ry}"/>`; }
+  for (let j = 1; j <= C; j++){ const y = cy - ry + j * (2*ry) / (C+1); s += `<line class="str" x1="${cx-rx}" x2="${cx+rx}" y1="${y.toFixed(2)}" y2="${y.toFixed(2)}"/>`; }
+  s += `<g id="ripples"></g></g><ellipse class="frame" cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}"/>`;
+  const by = cy + ry, ty = Math.min(172, by + 22);
+  s += `<path class="throat" d="M${cx - rx*0.55} ${cy + ry*0.83} Q ${cx - 6} ${by + 6} ${cx - 5} ${ty} M${cx + rx*0.55} ${cy + ry*0.83} Q ${cx + 6} ${by + 6} ${cx + 5} ${ty}"/>`;
+  s += `<circle id="spot" class="spot" cx="${cx}" cy="${cy}" r="2.5"/>`;
+  svg.innerHTML = s;
+}
+function ripple(){
+  if (reduced()) return;
+  const g = $("ripples"); if (!g) return;
+  [0, 180].forEach(delay => {
+    const c = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    c.setAttribute("class", "ripple"); c.setAttribute("cx", headGeo.cx); c.setAttribute("cy", headGeo.cy); c.setAttribute("r", headGeo.rx);
+    c.style.animationDelay = delay + "ms";
+    g.appendChild(c); setTimeout(() => c.remove(), 1300);
+  });
+}
+
+/* ---------- microphone ---------- */
+let listening = false, ctx, stream, small, big, sbuf, bbuf, raf, noise = 0.002, lastTrig = 0, pending = false, wake = null;
+async function startListen(){
+  try {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) throw new Error("nomedia");
+    stream = await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false, noiseSuppression:false, autoGainControl:false}});
+  } catch(e){
+    flash(window.self !== window.top
+      ? "De microfoon is geblokkeerd in deze voorbeeldweergave. Open je eigen gehoste versie, of kies een opname."
+      : "Geen toegang tot de microfoon. Sta de microfoon toe in je browser; dat werkt alleen via een https-adres.");
+    return;
+  }
+  ctx = new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state === "suspended") await ctx.resume();
+  const src = ctx.createMediaStreamSource(stream);
+  small = ctx.createAnalyser(); small.fftSize = 2048;
+  big = ctx.createAnalyser(); big.fftSize = 32768;
+  src.connect(small); src.connect(big);
+  sbuf = new Float32Array(small.fftSize); bbuf = new Float32Array(big.fftSize);
+  listening = true; noise = 0.002; pending = false;
+  try { wake = await navigator.wakeLock.request("screen"); } catch(e){ wake = null; }
+  loop(); renderMeter();
+}
+function loop(){
+  small.getFloatTimeDomainData(sbuf);
+  let s = 0; for (let i = 0; i < sbuf.length; i++) s += sbuf[i]*sbuf[i];
+  const rms = Math.sqrt(s / sbuf.length);
+  const spot = $("spot"); if (spot) spot.setAttribute("r", (2.5 + Math.min(1, rms * 12) * 9).toFixed(1));
+  const now = performance.now();
+  if (!pending){
+    if (rms > Math.max(noise * 8, 0.015) && now - lastTrig > 700){
+      pending = true; lastTrig = now;
+      setTimeout(() => {
+        if (!listening){ pending = false; return; }
+        big.getFloatTimeDomainData(bbuf);
+        const res = analyze(bbuf, ctx.sampleRate);
+        pending = false;
+        if (res) addTap(res.freq); else flash("Die tik was niet duidelijk genoeg. Probeer opnieuw, iets harder en dichter bij de gsm.");
+      }, 350);
+    } else if (rms < noise * 3) noise = noise * 0.97 + rms * 0.03;
+  }
+  raf = requestAnimationFrame(loop);
+}
+function stopListen(){
+  listening = false; cancelAnimationFrame(raf);
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  if (ctx) ctx.close().catch(() => {});
+  if (wake) wake.release().catch(() => {});
+  const spot = $("spot"); if (spot) spot.setAttribute("r", "2.5");
+  renderMeter();
+}
+
+/* ---------- audio file ---------- */
+async function fromFile(file){
+  try {
+    const ac = new (window.AudioContext || window.webkitAudioContext)();
+    const buf = await ac.decodeAudioData(await file.arrayBuffer());
+    ac.close().catch(() => {});
+    const x = buf.getChannelData(0), sr = buf.sampleRate, fr = Math.round(sr * 0.005), nF = Math.floor(x.length / fr);
+    const env = new Float64Array(nF);
+    for (let k = 0; k < nF; k++){ let e = 0; for (let i = k*fr; i < (k+1)*fr; i++) e += x[i]*x[i]; env[k] = Math.sqrt(e / fr); }
+    const sorted = Array.from(env).sort((a,b) => a-b);
+    const thr = Math.max(sorted[Math.floor(nF * 0.2)] * 6, sorted[nF-1] * 0.15);
+    let last = -1e9, found = 0;
+    for (let k = 0; k < nF; k++){
+      if (env[k] > thr && (k - last) * 0.005 > 0.35){
+        last = k;
+        const res = analyze(x.subarray(Math.max(0, (k-4)*fr), Math.min(x.length, (k+80)*fr)), sr);
+        if (res){ taps.push(res.freq); found++; }
+      }
+    }
+    while (taps.length > 8) taps.shift();
+    if (found) ripple(); else flash("Geen duidelijke tikken gevonden in deze opname.");
+    renderMeter();
+  } catch(e){ flash("Dit audiobestand kan niet gelezen worden. Probeer een m4a-, mp3- of wav-opname."); }
+}
+
+/* ---------- demo ---------- */
+function demoTap(){
+  const {r, b} = cur();
+  let f = 540;
+  if (r && b){
+    const target = (refKg(r, b) || 22) * 0.88;
+    f = b.k ? Math.sqrt(target / b.k) : Math.sqrt(target * 9.80665 / (C_EST * mu(b) * r.balhoofd * 0.00064516));
+  }
+  f *= 1 + (Math.random() - 0.5) * 0.012;
+  const sr = 48000, n = Math.round(sr * 0.6), buf = new Float32Array(n), t0 = Math.round(sr * 0.2);
+  for (let i = 0; i < n; i++){
+    let v = (Math.random() - 0.5) * 0.006;
+    if (i >= t0){
+      const dt = (i - t0) / sr;
+      v += 0.4 * Math.exp(-dt / 0.09) * Math.sin(2*Math.PI*f*dt) + 0.12 * Math.exp(-dt / 0.05) * Math.sin(2*Math.PI*1.59*f*dt + 1);
+      if (dt < 0.002) v += (Math.random() - 0.5) * 0.6;
+    }
+    buf[i] = v;
+  }
+  const res = analyze(buf, sr);
+  if (res) addTap(res.freq);
+}
+
+/* ---------- rendering ---------- */
+function renderSwitch(){
+  const {r} = cur();
+  $("switch").innerHTML = state.rackets.map(x =>
+    `<button class="rchip" type="button" data-r="${x.id}" aria-pressed="${r && r.id === x.id}"><b>${esc(x.naam)}${x.bijnaam ? " · " + esc(x.bijnaam) : ""}</b><span>${x.merk ? esc(x.merk) + " · " : ""}${x.balhoofd} · ${esc(x.patroon)}</span></button>`
+  ).join("") + `<button class="rchip add" type="button" id="btn-add-racket">+ Racket</button>`;
+  $("switch").querySelectorAll("[data-r]").forEach(btn => btn.onclick = () => { state.sel = btn.dataset.r; taps = []; save(); closeForm(); renderAll(); });
+  $("btn-add-racket").onclick = () => openRacketForm(false);
+}
+function renderScale(r, b, kg){
+  const el = $("m-scale");
+  const ref = r && b ? refKg(r, b) : null;
+  if (!ref){ el.innerHTML = ""; return; }
+  const lo = ref * 0.7, hi = ref * 1.06, pos = v => Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100));
+  const p80 = pos(ref * 0.8), p90 = pos(ref * 0.9);
+  let h = `<div class="track"><div class="zone z-bad" style="left:0;width:${p80}%"></div><div class="zone z-warn" style="left:${p80}%;width:${p90-p80}%"></div><div class="zone z-ok" style="left:${p90}%;right:0"></div><div class="reftick" style="left:${pos(ref)}%"></div>`;
+  if (kg != null) h += `<div class="marker" style="left:${pos(kg)}%"></div>`;
+  h += `</div><div class="scale-labels"><span>${fmt(lo)}</span><span>${b.k ? "bespanning" : "start"} ${fmt(ref)}</span><span>${fmt(hi)}</span></div>`;
+  el.innerHTML = h;
+}
+function renderMeter(){
+  const {r, b} = cur(), {f, used} = tapInfo(), kg = kgOf(r, b, f);
+  $("m-mode").textContent = !r ? "Geen racket" : !b ? "Geen bespanning" : b.k ? "Gekalibreerd" : "Schatting";
+  $("m-value").textContent = f && kg != null ? fmt(kg) : "–";
+  $("m-unit").textContent = state.unit;
+  $("m-sub").textContent = f
+    ? `${f.toFixed(0)} Hz · ${used.filter(Boolean).length} van ${taps.length} tikken`
+    : listening ? "Luisteren… tik op het midden" : "Tik 3 tot 5 keer op het midden van het snarenbed";
+  $("m-taps").innerHTML = taps.map((t, i) => `<span class="tap${used[i] ? "" : " out"}" title="${used[i] ? "Gebruikt" : "Wijkt te veel af"}">${t.toFixed(0)} Hz</span>`).join("");
+  const ref = r && b ? refKg(r, b) : null, chip = $("m-chip");
+  if (f && ref && kg != null){
+    const loss = (ref - kg) / ref * 100, st = status(loss);
+    chip.className = "chip " + st.cls; chip.textContent = `${Math.max(0, loss).toFixed(0)}% verlies · ${st.txt}`;
+  } else { chip.className = ""; chip.textContent = ""; }
+  renderScale(r, b, f ? kg : null);
+  const lb = $("btn-listen"); lb.classList.toggle("live", listening);
+  $("listen-txt").textContent = listening ? "Luisteren… tik om te stoppen" : "Start luisteren";
+  $("btn-save").disabled = !f || !b;
+  $("btn-clear").disabled = !taps.length;
+  const cb = $("btn-cal"); if (cb) cb.disabled = !f;
+}
+function renderBesp(){
+  const {r, b} = cur(), el = $("card-besp");
+  if (!r){ el.innerHTML = `<h2>Nog geen racket</h2><p class="note">Voeg een racket toe met "+ Racket" om te beginnen.</p>`; return; }
+  const head = `<div class="card-head"><div><span class="lbl">${esc(r.merk || "Racket")}</span><h2>${esc(r.naam)} ${r.voorbeeld ? `<span class="badge">Voorbeeld</span>` : ""}</h2>
+      <span class="muted" style="font-size:14px">${r.balhoofd} sq in · ${esc(r.patroon)}${r.bijnaam ? " · " + esc(r.bijnaam) : ""}</span></div>
+    <div class="row"><button class="btn small ghost" id="btn-edit-racket" type="button">Bewerken</button><button class="btn small ghost" id="btn-dup-racket" type="button">Kopie maken</button><button class="btn small ghost danger" id="btn-del-racket" type="button">Verwijderen</button></div></div>`;
+  if (!b){
+    el.innerHTML = head + `<p class="note">Nog geen bespanning ingevoerd. Voeg er een toe, dan weet de app welke snaar erin zit.</p><div class="row"><button class="btn primary" id="btn-new-besp" type="button">Bespanning toevoegen</button></div>`;
+    bindBesp(); return;
+  }
+  const d = new Date(b.datum + "T00:00:00"), ago = Math.max(0, Math.floor((Date.now() - d) / 864e5));
+  const ms = sortedM(b), lastKg = ms.length ? kgOf(r, b, ms[ms.length-1].freq) : null, ref = refKg(r, b);
+  const loss = lastKg != null && ref ? Math.max(0, (ref - lastKg) / ref * 100) : null, st = status(loss);
+  const stats = `<div class="stats">
+      <div class="stat"><b>${ago}</b><span>${ago === 1 ? "dag" : "dagen"} oud</span></div>
+      <div class="stat"><b>${lastKg != null ? fmt(lastKg) : "–"}</b><span>laatste (${state.unit})</span></div>
+      <div class="stat ${st ? st.cls : ""}"><b>${loss != null ? loss.toFixed(0) + "%" : "–"}</b><span>verlies</span></div></div>`;
+  let cal;
+  if (!b.machineKg) cal = `<div class="cal">${icon("target")}<div><p class="note">Vul de spanning van de bespanning in via Bewerken om te kunnen kalibreren.</p></div></div>`;
+  else if (b.k) cal = `<div class="cal">${icon("target")}<div><p class="note">Gekalibreerd op ${b.kFreq.toFixed(0)} Hz. Metingen tonen de spanning in dezelfde maat als je machine-instelling.</p><div class="row"><button class="btn small" id="btn-cal" type="button">Opnieuw kalibreren</button><button class="btn small ghost" id="btn-uncal" type="button">Kalibratie wissen</button></div></div></div>`;
+  else cal = `<div class="cal">${icon("target")}<div><p class="note">Meet meteen na het bespannen en kalibreer. Daarna toont de app de spanning in dezelfde maat als je machine-instelling.</p><div class="row"><button class="btn small primary" id="btn-cal" type="button">Kalibreer met huidige meting</button></div></div></div>`;
+  el.innerHTML = head + `<div class="card-head"><span class="lbl">Huidige bespanning</span>
+      <div class="row"><button class="btn small ghost" id="btn-edit-besp" type="button">Bewerken</button><button class="btn small" id="btn-new-besp" type="button">Nieuwe bespanning</button></div></div>
+    ${stats}
+    <dl class="facts">
+      <dt>Bespannen op</dt><dd>${d.toLocaleDateString("nl-BE", {day:"numeric", month:"long", year:"numeric"})}</dd>
+      <dt>Snaar</dt><dd>${esc(b.snaar) || "–"}</dd>
+      <dt>Materiaal</dt><dd>${MAT[b.materiaal]} · ${b.dikte.toFixed(2)} mm</dd>
+      <dt>Spanning</dt><dd>${b.machineKg ? fmt(b.machineKg) + " " + state.unit : "onbekend"}</dd>
+    </dl>${cal}`;
+  bindBesp();
+}
+function bindBesp(){
+  const on = (id, fn) => { const e = $(id); if (e) e.onclick = fn; };
+  on("btn-edit-racket", () => openRacketForm(true));
+  on("btn-dup-racket", () => {
+    const r = cur().r;
+    const same = state.rackets.filter(x => x.merk === r.merk && x.naam === r.naam && x.balhoofd === r.balhoofd && x.patroon === r.patroon);
+    if (!r.bijnaam || r.voorbeeld) { r.bijnaam = r.voorbeeld ? r.bijnaam : "1"; }
+    const nr = {id:uid(), merk:r.merk, naam:r.naam, balhoofd:r.balhoofd, patroon:r.patroon, bijnaam:String(same.length + 1), bespanningen:[]};
+    state.rackets.push(nr); state.sel = nr.id; taps = []; save(); renderAll();
+    flash("Kopie gemaakt als racket " + nr.bijnaam + ". Vul de bespanning in.");
+    openBespForm(false);
+  });
+  on("btn-del-racket", ev => confirmBtn(ev.currentTarget, "Zeker? Klik opnieuw", () => {
+    state.rackets = state.rackets.filter(x => x.id !== cur().r.id);
+    state.sel = state.rackets[0] ? state.rackets[0].id : null; taps = []; save(); renderAll();
+  }));
+  on("btn-new-besp", () => openBespForm(false));
+  on("btn-edit-besp", () => openBespForm(true));
+  on("btn-cal", () => {
+    const {b} = cur(), {f} = tapInfo();
+    if (!f || !b.machineKg) return;
+    b.k = b.machineKg / (f * f); b.kFreq = f;
+    b.metingen.push({id:uid(), datum:new Date().toISOString(), freq:f});
+    taps = []; save(); renderAll(); flash("Gekalibreerd en meting opgeslagen.");
+  });
+  on("btn-uncal", () => { const {b} = cur(); delete b.k; delete b.kFreq; save(); renderAll(); });
+}
+function confirmBtn(btn, txt, fn){
+  if (btn.dataset.armed){ fn(); return; }
+  const old = btn.textContent; btn.dataset.armed = "1"; btn.textContent = txt;
+  setTimeout(() => { if (btn.isConnected){ delete btn.dataset.armed; btn.textContent = old; } }, 3500);
+}
+function renderHistory(){
+  const {r, b} = cur(), chart = $("chart"), list = $("list");
+  if (!r || !b || !b.metingen.length){ chart.innerHTML = `<p class="note">Nog geen metingen voor deze bespanning.</p>`; list.innerHTML = ""; $("h-sub").textContent = ""; return; }
+  const ms = sortedM(b), pts = ms.map(m => ({x:Math.max(0, daysSince(b, m.datum)), y:disp(kgOf(r, b, m.freq))}));
+  const ref = refKg(r, b), refD = ref != null ? disp(ref) : null;
+  $("h-sub").textContent = `${state.unit} · ${b.k ? "gekalibreerd" : "geschat"}`;
+  const W = 340, H = 190, L = 34, R = 14, T = 16, B = 28;
+  const xMax = Math.max(7, Math.ceil(Math.max(...pts.map(p => p.x))));
+  const ys = pts.map(p => p.y).concat(refD != null ? [refD] : []);
+  let yMin = Math.floor(Math.min(...ys) - 0.8), yMax = Math.ceil(Math.max(...ys) + 0.8);
+  const step = (yMax - yMin) > 16 ? 4 : (yMax - yMin) > 8 ? 2 : 1;
+  yMin = Math.floor(yMin / step) * step; yMax = Math.ceil(yMax / step) * step;
+  const X = v => L + v / xMax * (W - L - R), Y = v => T + (yMax - v) / (yMax - yMin) * (H - T - B);
+  let g = `<defs><linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--accent)" stop-opacity=".22"/><stop offset="1" stop-color="var(--accent)" stop-opacity="0"/></linearGradient></defs>`;
+  for (let v = yMin; v <= yMax + 1e-9; v += step) g += `<line class="grid-l" x1="${L}" x2="${W-R}" y1="${Y(v)}" y2="${Y(v)}"/><text class="ax" x="${L-6}" y="${Y(v)+4}" text-anchor="end">${v}</text>`;
+  const xs = xMax <= 14 ? [0, Math.round(xMax/2), xMax] : [0, Math.round(xMax/3), Math.round(2*xMax/3), xMax];
+  xs.forEach(v => g += `<text class="ax" x="${X(v)}" y="${H-8}" text-anchor="middle">${v === 0 ? "dag 0" : v}</text>`);
+  if (refD != null) g += `<line class="ref-l" x1="${L}" x2="${W-R}" y1="${Y(refD)}" y2="${Y(refD)}"/><text class="ax" x="${W-R}" y="${Y(refD)-5}" text-anchor="end">${b.k ? "bespanning" : "eerste meting"}</text>`;
+  const line = pts.map(p => `${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join(" ");
+  if (pts.length > 1) g += `<polygon class="area" points="${X(pts[0].x)},${Y(yMin)} ${line} ${X(pts[pts.length-1].x)},${Y(yMin)}"/><polyline class="series" points="${line}"/>`;
+  pts.forEach((p, i) => { const last = i === pts.length - 1; g += `<circle class="pt${last ? " last" : ""}" cx="${X(p.x)}" cy="${Y(p.y)}" r="${last ? 5 : 3.5}"/>`; });
+  const lp = pts[pts.length-1];
+  g += `<text class="val" x="${Math.min(X(lp.x), W-R-4)}" y="${Y(lp.y)+19}" text-anchor="end">${lp.y.toFixed(1)}</text>`;
+  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Spanning in ${state.unit} per dag sinds bespannen">${g}</svg>`;
+  list.innerHTML = ms.slice().reverse().map(m => {
+    const dd = Math.max(0, Math.floor(daysSince(b, m.datum)));
+    return `<li><span>${new Date(m.datum).toLocaleDateString("nl-BE", {day:"numeric", month:"short"})} <span class="mono">dag ${dd}</span></span>
+      <span class="mono">${m.freq.toFixed(0)} Hz</span><span class="kg">${fmt(kgOf(r, b, m.freq))} ${state.unit}</span>
+      <button class="x" type="button" data-del="${m.id}" aria-label="Meting verwijderen">${icon("x")}</button></li>`;
+  }).join("");
+  list.querySelectorAll("[data-del]").forEach(btn => btn.onclick = () => { b.metingen = b.metingen.filter(m => m.id !== btn.dataset.del); save(); renderAll(); });
+}
+function renderAll(){ const {r} = cur(); renderHead(r); renderSwitch(); renderBesp(); renderHistory(); renderMeter(); }
+
+/* ---------- forms ---------- */
+function showPanel(el){ el.hidden = false; el.scrollIntoView({behavior:reduced() ? "auto" : "smooth", block:"start"}); }
+function closeForm(){ $("panel-form").hidden = true; $("panel-form").innerHTML = ""; }
+function openRacketForm(edit){
+  const r = edit ? cur().r : null, p = $("panel-form");
+  p.innerHTML = `<div class="card-head"><h2>${edit ? "Racket bewerken" : "Nieuw racket"}</h2></div>
+  <form id="f-racket">
+    <div class="field"><label for="r-zoek">Zoek je model</label>
+      <div class="search">${icon("search")}<input id="r-zoek" type="search" autocomplete="off" placeholder="bv. pure aero, blade 98, speed mp"></div>
+      <div class="results" id="r-results" hidden></div>
+      <span class="hint">Maten van de recentste versies. Kijk bij twijfel op de hals van je racket.</span></div>
+    <div class="grid2">
+      <div class="field"><label for="r-merk">Merk</label><input id="r-merk" maxlength="30" value="${esc(r ? r.merk || "" : "")}" placeholder="bv. Head"></div>
+      <div class="field"><label for="r-naam">Model</label><input id="r-naam" required maxlength="40" value="${esc(r ? r.naam : "")}" placeholder="bv. Speed MP"></div>
+    </div>
+    <div class="grid2">
+      <div class="field"><label for="r-balhoofd">Balhoofd (sq in)</label><input id="r-balhoofd" type="number" min="85" max="125" step="1" required value="${r ? r.balhoofd : 100}"></div>
+      <div class="field"><label for="r-patroon">Snaarpatroon</label><select id="r-patroon">${PATTERNS.map(x => `<option${(r ? r.patroon : "16x19") === x ? " selected" : ""}>${x}</option>`).join("")}</select></div>
+    </div>
+    <div class="field"><label for="r-bijnaam">Bijnaam</label><input id="r-bijnaam" maxlength="24" value="${esc(r ? r.bijnaam || "" : "")}" placeholder="optioneel, bv. wedstrijd of reserve"></div>
+    <div class="row"><button class="btn primary" type="submit">Opslaan</button><button class="btn ghost" type="button" id="f-cancel">Annuleren</button></div>
+  </form>`;
+  const q = $("r-zoek"), res = $("r-results");
+  q.oninput = () => {
+    const toks = q.value.toLowerCase().trim().split(/\s+/).filter(Boolean);
+    if (!toks.length){ res.hidden = true; res.innerHTML = ""; return; }
+    const hits = RACKETS.filter(([m, n]) => { const s = (m + " " + n).toLowerCase(); return toks.every(t => s.includes(t)); }).slice(0, 30);
+    res.hidden = false;
+    res.innerHTML = hits.length
+      ? hits.map((h, i) => `<button type="button" data-i="${RACKETS.indexOf(h)}"><span><span class="brand-n">${h[0]}</span> <b>${h[1]}</b></span><span class="spec">${h[2]} · ${h[3]}</span></button>`).join("")
+      : `<p class="note" style="padding:10px 12px">Niet gevonden. Vul merk, model, balhoofd en patroon hieronder zelf in.</p>`;
+    res.querySelectorAll("[data-i]").forEach(btn => btn.onclick = () => {
+      const [m, n, h, pt] = RACKETS[+btn.dataset.i];
+      $("r-merk").value = m; $("r-naam").value = n; $("r-balhoofd").value = h; $("r-patroon").value = pt;
+      q.value = ""; res.hidden = true; res.innerHTML = "";
+      $("r-bijnaam").focus();
+    });
+  };
+  $("f-cancel").onclick = closeForm;
+  $("f-racket").onsubmit = e => {
+    e.preventDefault();
+    const vals = {merk:$("r-merk").value.trim(), naam:$("r-naam").value.trim(), balhoofd:+$("r-balhoofd").value, patroon:$("r-patroon").value, bijnaam:$("r-bijnaam").value.trim()};
+    if (edit){ Object.assign(r, vals); delete r.voorbeeld; }
+    else { const nr = Object.assign({id:uid(), bespanningen:[]}, vals); state.rackets.push(nr); state.sel = nr.id; taps = []; }
+    save(); closeForm(); renderAll();
+    if (!edit) openBespForm(false);
+  };
+  showPanel(p);
+  if (!edit) setTimeout(() => q.focus({preventScroll:true}), 50);
+}
+function openBespForm(edit){
+  const {b} = cur();
+  const s = edit ? b : (b ? {snaar:b.snaar, materiaal:b.materiaal, dikte:b.dikte, machineKg:b.machineKg} : {});
+  const p = $("panel-form");
+  p.innerHTML = `<h2>${edit ? "Bespanning bewerken" : "Nieuwe bespanning"}</h2>
+  <form id="f-besp">
+    <div class="grid2">
+      <div class="field"><label for="b-datum">Bespannen op</label><input id="b-datum" type="date" required value="${edit ? b.datum : isoDay(new Date())}"></div>
+      <div class="field"><label for="b-kg">Spanning (kg)</label><input id="b-kg" type="number" min="10" max="35" step="0.5" value="${s.machineKg ?? ""}" placeholder="onbekend"><span class="hint">Leeg laten als je het niet weet</span></div>
+    </div>
+    <div class="field"><label for="b-snaar">Snaar</label><input id="b-snaar" maxlength="60" value="${esc(s.snaar ?? "")}" placeholder="merk en type, voor je eigen overzicht"></div>
+    <div class="grid2">
+      <div class="field"><label for="b-mat">Materiaal</label><select id="b-mat">${Object.keys(MAT).map(k => `<option value="${k}"${(s.materiaal || "poly") === k ? " selected" : ""}>${MAT[k]}</option>`).join("")}</select></div>
+      <div class="field"><label for="b-dikte">Dikte (mm)</label><input id="b-dikte" type="number" min="1.05" max="1.45" step="0.01" required value="${s.dikte ?? 1.25}"></div>
+    </div>
+    <p class="note">${edit ? "Materiaal en dikte tellen alleen voor de schatting zonder kalibratie." : "Meet na het opslaan meteen en kies \"Kalibreer met huidige meting\"."}</p>
+    <div class="row"><button class="btn primary" type="submit">Opslaan</button><button class="btn ghost" type="button" id="f-cancel">Annuleren</button></div>
+  </form>`;
+  $("f-cancel").onclick = closeForm;
+  $("f-besp").onsubmit = e => {
+    e.preventDefault();
+    const kgv = $("b-kg").value;
+    const vals = {datum:$("b-datum").value, snaar:$("b-snaar").value.trim(), materiaal:$("b-mat").value, dikte:+$("b-dikte").value, machineKg:kgv ? +kgv : null};
+    const {r} = cur();
+    if (edit){
+      if (vals.machineKg && b.kFreq && vals.machineKg !== b.machineKg) b.k = vals.machineKg / (b.kFreq * b.kFreq);
+      if (!vals.machineKg){ delete b.k; delete b.kFreq; }
+      Object.assign(b, vals);
+    } else r.bespanningen.push(Object.assign({id:uid(), metingen:[]}, vals));
+    save(); closeForm(); renderAll();
+  };
+  showPanel(p);
+}
+function openSettings(){
+  const p = $("panel-settings");
+  if (!p.hidden){ p.hidden = true; return; }
+  const acct = me ? `<div class="field"><span class="flabel">Account</span><p class="note">${esc(me.naam)} · ${esc(me.email)}${me.rol === "trainer" ? " · trainer" : ""}</p>
+      <div class="row"><button class="btn small" type="button" id="s-logout">Uitloggen</button></div></div>` : "";
+  p.innerHTML = `<div class="card-head"><h2>Instellingen</h2><button class="btn small ghost" type="button" id="s-close">Sluiten</button></div>${acct}
+    <div class="field"><span class="flabel">Eenheid</span><div class="seg" role="group" aria-label="Eenheid">
+      <button type="button" data-u="kg" aria-pressed="${state.unit === "kg"}">kg</button><button type="button" data-u="lbs" aria-pressed="${state.unit === "lbs"}">lbs</button></div></div>
+    <div class="field"><span class="flabel">Back-up</span>
+      <p class="note">${me ? "Je gegevens staan online in je account. Een extra back-up kan geen kwaad." : "Je gegevens staan alleen in deze browser op dit toestel. Kopieer af en toe een back-up, bijvoorbeeld naar je notities."}</p>
+      <div class="row"><button class="btn small" type="button" id="s-copy">Back-up kopiëren</button></div></div>
+    <div class="field"><label for="s-import">Back-up terugzetten</label><textarea id="s-import" spellcheck="false" placeholder="Plak hier je back-up"></textarea>
+      <div class="row"><button class="btn small" type="button" id="s-restore">Terugzetten</button></div></div>`;
+  p.querySelectorAll("[data-u]").forEach(btn => btn.onclick = () => { state.unit = btn.dataset.u; save(); p.hidden = true; openSettings(); renderAll(); });
+  $("s-close").onclick = () => p.hidden = true;
+  if (me) $("s-logout").onclick = logout;
+  $("s-copy").onclick = () => {
+    const txt = JSON.stringify(state), ta = $("s-import");
+    navigator.clipboard.writeText(txt).then(() => flashBtn($("s-copy"), "Gekopieerd"), () => { ta.value = txt; ta.select(); flashBtn($("s-copy"), "Selecteer en kopieer"); });
+  };
+  $("s-restore").onclick = ev => {
+    let d; try { d = JSON.parse($("s-import").value); } catch(e){}
+    if (!d || !Array.isArray(d.rackets)){ flashBtn(ev.currentTarget, "Ongeldige back-up"); return; }
+    confirmBtn(ev.currentTarget, "Overschrijft alles. Klik opnieuw", () => { state = d; taps = []; save(); p.hidden = true; renderAll(); });
+  };
+  showPanel(p);
+}
+function flashBtn(btn, txt){ const o = btn.textContent; btn.textContent = txt; setTimeout(() => btn.textContent = o, 2200); }
+
+/* ---------- wiring ---------- */
+$("btn-settings").onclick = openSettings;
+$("btn-listen").onclick = () => listening ? stopListen() : startListen();
+$("btn-clear").onclick = () => { taps = []; renderMeter(); };
+$("btn-demo").onclick = demoTap;
+$("btn-save").onclick = () => {
+  const {b} = cur(), {f} = tapInfo();
+  if (!b || !f) return;
+  b.metingen.push({id:uid(), datum:new Date().toISOString(), freq:f});
+  taps = []; save(); renderAll(); flash("Meting opgeslagen.");
+};
+$("file-audio").onchange = e => { const f = e.target.files[0]; if (f) fromFile(f); e.target.value = ""; };
+document.addEventListener("visibilitychange", () => { if (document.hidden && listening) stopListen(); if (document.hidden && dirty) pushCloud(); });
+/* ---------- account (Supabase) ---------- */
+let authMode = "in";
+function showAuth(msg, cls){
+  me = null; students = null;
+  $("auth").hidden = false; $("mine").hidden = true; $("coach").hidden = true; $("viewseg").hidden = true;
+  $("panel-settings").hidden = true; $("btn-settings").hidden = true; setSync("");
+  renderAuth(msg, cls);
+}
+function renderAuth(msg = "", cls = ""){
+  const up = authMode === "up", reset = authMode === "reset";
+  const el = $("auth");
+  el.innerHTML = `<div class="auth-intro"><h2>${reset ? "Nieuw wachtwoord" : up ? "Account maken" : "Inloggen"}</h2>
+      <p class="note">${reset ? "Kies een nieuw wachtwoord voor je account." : "Je rackets en metingen worden bewaard in je account. Je trainer kan ze bekijken om te zien wanneer je moet herbespannen."}</p></div>
+    ${reset ? "" : `<div class="seg" role="group" aria-label="Inloggen of account maken"><button type="button" data-m="in" aria-pressed="${!up}">Inloggen</button><button type="button" data-m="up" aria-pressed="${up}">Account maken</button></div>`}
+    <form id="f-auth" novalidate>
+      ${up ? `<div class="field"><label for="a-naam">Naam</label><input id="a-naam" autocomplete="name" maxlength="40" required placeholder="Voornaam en naam"></div>` : ""}
+      ${reset ? "" : `<div class="field"><label for="a-email">E-mail</label><input id="a-email" type="email" autocomplete="email" required></div>`}
+      <div class="field"><label for="a-pw">${reset ? "Nieuw wachtwoord" : "Wachtwoord"}</label><input id="a-pw" type="password" minlength="6" autocomplete="${up || reset ? "new-password" : "current-password"}" required><span class="hint">${up || reset ? "Minstens 6 tekens" : ""}</span></div>
+      ${up ? `<div class="field"><label for="a-code">Clubcode</label><input id="a-code" autocomplete="off" required placeholder="Krijg je van je trainer"></div>` : ""}
+      <p class="auth-msg ${cls}" id="a-msg" role="status">${esc(msg)}</p>
+      <button class="btn primary" type="submit" id="a-submit">${reset ? "Wachtwoord opslaan" : up ? "Account maken" : "Inloggen"}</button>
+      ${authMode === "in" ? `<button class="demo" type="button" id="a-forgot">Wachtwoord vergeten?</button>` : ""}
+    </form>`;
+  el.querySelectorAll("[data-m]").forEach(b => b.onclick = () => { authMode = b.dataset.m; renderAuth(); });
+  const say = (t, c = "err") => { const m = $("a-msg"); m.textContent = t; m.className = "auth-msg " + c; };
+  const fg = $("a-forgot");
+  if (fg) fg.onclick = async () => {
+    const email = $("a-email").value.trim();
+    if (!email){ say("Vul eerst je e-mailadres in."); return; }
+    const {error} = await sb.auth.resetPasswordForEmail(email, {redirectTo: location.origin + location.pathname});
+    say(error ? "Versturen lukte niet. Probeer het later opnieuw." : "Als dit adres een account heeft, krijg je een mail om je wachtwoord te wijzigen.", error ? "err" : "ok");
+  };
+  $("f-auth").onsubmit = async e => {
+    e.preventDefault();
+    const pw = $("a-pw").value;
+    if (pw.length < 6){ say("Kies een wachtwoord van minstens 6 tekens."); return; }
+    const btn = $("a-submit"); btn.disabled = true; say("Even geduld…", "");
+    try {
+      if (reset){
+        const {error} = await sb.auth.updateUser({password: pw});
+        if (error){ say("Wachtwoord wijzigen lukte niet. Vraag een nieuwe mail aan."); return; }
+        const {data} = await sb.auth.getUser(); authMode = "in"; await afterLogin(data.user); return;
+      }
+      const email = $("a-email").value.trim();
+      if (!email){ say("Vul je e-mailadres in."); return; }
+      if (up){
+        const naam = $("a-naam").value.trim(), code = $("a-code").value.trim();
+        if (!naam || !code){ say("Vul je naam en de clubcode in."); return; }
+        const {data, error} = await sb.auth.signUp({email, password: pw, options: {data: {naam, clubcode: code}}});
+        if (error){
+          const m = (error.message || "").toLowerCase();
+          say(m.includes("registered") || m.includes("exists") ? "Dit e-mailadres heeft al een account. Kies Inloggen."
+            : m.includes("database") ? "Account maken lukte niet. Controleer de clubcode."
+            : m.includes("password") ? "Kies een sterker wachtwoord van minstens 6 tekens."
+            : "Account maken lukte niet: " + error.message);
+          return;
+        }
+        if (!data.session){ authMode = "in"; renderAuth("Bevestig je e-mailadres via de mail die je kreeg en log daarna in.", "ok"); return; }
+        await afterLogin(data.user);
+      } else {
+        const {data, error} = await sb.auth.signInWithPassword({email, password: pw});
+        if (error){ say((error.message || "").toLowerCase().includes("confirm") ? "Bevestig eerst je e-mailadres via de mail die je kreeg." : "E-mail of wachtwoord klopt niet."); return; }
+        await afterLogin(data.user);
+      }
+    } finally { if (btn.isConnected) btn.disabled = false; }
+  };
+}
+async function afterLogin(user){
+  me = {id:user.id, email:user.email, naam:(user.user_metadata && user.user_metadata.naam) || user.email, rol:"leerling"};
+  let cached = null;
+  try { cached = JSON.parse(localStorage.getItem(storeKey())); } catch(e){}
+  const [pr, dr] = await Promise.all([
+    sb.from("profiles").select("naam,rol").eq("id", user.id).maybeSingle(),
+    sb.from("userdata").select("state").eq("user_id", user.id).maybeSingle()
+  ]);
+  if (pr.data){ me.naam = pr.data.naam || me.naam; me.rol = pr.data.rol; }
+  if (dr.data && dr.data.state && Array.isArray(dr.data.state.rackets)) state = dr.data.state;
+  else if (dr.error && cached && Array.isArray(cached.rackets)){ state = cached; setSync("Offline", true); }
+  else {
+    let local = null; try { local = JSON.parse(localStorage.getItem(LS)); } catch(e){}
+    const own = local && Array.isArray(local.rackets) ? local.rackets.filter(r => !r.voorbeeld) : [];
+    state = own.length ? {unit:local.unit || "kg", sel:own[0].id, rackets:own} : emptyState();
+    if (!dr.error) save();
+  }
+  taps = [];
+  $("auth").hidden = true; $("btn-settings").hidden = false;
+  $("viewseg").hidden = me.rol !== "trainer";
+  if (!dr.error) setSync("Opgeslagen");
+  setView("mine");
+  renderAll();
+}
+async function logout(){
+  if (listening) stopListen();
+  if (dirty) await pushCloud();
+  await sb.auth.signOut();
+  state = emptyState(); taps = []; authMode = "in";
+  showAuth("Je bent uitgelogd.", "ok");
+}
+function setView(v){
+  view = v;
+  $("viewseg").querySelectorAll("[data-v]").forEach(b => b.setAttribute("aria-pressed", b.dataset.v === v));
+  if (listening && v !== "mine") stopListen();
+  $("mine").hidden = v !== "mine"; $("coach").hidden = v !== "coach";
+  if (v === "coach") loadStudents();
+}
+$("viewseg").querySelectorAll("[data-v]").forEach(b => b.onclick = () => setView(b.dataset.v));
+
+/* ---------- trainer overview ---------- */
+const RANK = {bad:3, warn:2, ok:1};
+function agoTxt(d){ const n = Math.floor((Date.now() - d) / 864e5); return n <= 0 ? "vandaag" : n === 1 ? "gisteren" : n + " dagen geleden"; }
+function studentInfo(p, st){
+  const rows = [];
+  let last = null;
+  (st && Array.isArray(st.rackets) ? st.rackets : []).forEach(r => {
+    const b = r.bespanningen && r.bespanningen.length ? r.bespanningen[r.bespanningen.length-1] : null;
+    const ms = b ? sortedM(b) : [], lm = ms[ms.length-1];
+    const kg = lm ? kgOf(r, b, lm.freq) : null, ref = b ? refKg(r, b) : null;
+    const loss = kg != null && ref ? Math.max(0, (ref - kg) / ref * 100) : null;
+    const days = b ? Math.max(0, Math.floor((Date.now() - new Date(b.datum + "T00:00:00")) / 864e5)) : null;
+    if (lm){ const d = new Date(lm.datum); if (!last || d > last) last = d; }
+    rows.push({r, b, kg, loss, st:status(loss), days, cal:!!(b && b.k)});
+  });
+  rows.sort((a, c) => (RANK[c.st && c.st.cls] || 0) - (RANK[a.st && a.st.cls] || 0));
+  const worst = rows.length && rows[0].st ? rows[0].st : null;
+  return {p, rows, last, worst};
+}
+async function loadStudents(){
+  const el = $("coach");
+  if (!students) el.innerHTML = `<div class="card"><h2>Leerlingen</h2><p class="note">Leerlingen laden…</p></div>`;
+  const [pr, dr] = await Promise.all([sb.from("profiles").select("id,naam,rol"), sb.from("userdata").select("user_id,state,updated_at")]);
+  if (pr.error || dr.error){ el.innerHTML = `<div class="card"><h2>Leerlingen</h2><p class="note">Laden lukte niet. Controleer je verbinding en probeer opnieuw.</p><div class="row"><button class="btn small" type="button" id="c-retry">Opnieuw</button></div></div>`; $("c-retry").onclick = loadStudents; return; }
+  const byId = {}; (dr.data || []).forEach(d => byId[d.user_id] = d.state);
+  students = (pr.data || []).filter(p => p.id !== me.id).map(p => studentInfo(p, byId[p.id]));
+  students.sort((a, c) => (RANK[c.worst && c.worst.cls] || 0) - (RANK[a.worst && a.worst.cls] || 0) || a.p.naam.localeCompare(c.p.naam, "nl"));
+  renderCoach();
+}
+function renderCoach(){
+  const el = $("coach"), list = students || [];
+  const nBad = list.filter(s => s.worst && s.worst.cls === "bad").length, nWarn = list.filter(s => s.worst && s.worst.cls === "warn").length;
+  el.innerHTML = `<div class="card">
+    <div class="card-head"><div><span class="lbl">Trainer</span><h2>Leerlingen</h2></div><button class="btn small" type="button" id="c-refresh">Vernieuwen</button></div>
+    <div class="sum"><span class="chip bad">${nBad} herbespannen</span><span class="chip warn">${nWarn} let op</span><span class="badge">${list.length} leerlingen</span></div>
+    <div class="search">${icon("search")}<input id="c-zoek" type="search" placeholder="Zoek een leerling" autocomplete="off" aria-label="Zoek een leerling"></div>
+    <div id="c-list"></div>
+    <p class="note">Waarden zonder kalibratie zijn schattingen. Leerlingen zien alleen hun eigen rackets.</p></div>`;
+  $("c-refresh").onclick = loadStudents;
+  $("c-zoek").oninput = e => renderCoachList(e.target.value);
+  renderCoachList("");
+}
+function renderCoachList(q){
+  const t = q.toLowerCase().trim(), list = (students || []).filter(s => !t || s.p.naam.toLowerCase().includes(t));
+  $("c-list").innerHTML = list.length ? list.map(s => `<details class="stu"><summary>
+      <b>${esc(s.p.naam)}${s.p.rol === "trainer" ? ` <span class="badge">trainer</span>` : ""}</b>
+      ${s.worst ? `<span class="chip ${s.worst.cls}">${s.worst.txt}</span>` : `<span></span>`}
+      <span class="muted">${s.rows.length} ${s.rows.length === 1 ? "racket" : "rackets"} · ${s.last ? "laatste meting " + agoTxt(s.last) : "nog geen metingen"}</span></summary>
+      ${s.rows.length ? s.rows.map(x => `<div class="stu-r">
+        <div><b>${esc(x.r.naam)}${x.r.bijnaam ? " · " + esc(x.r.bijnaam) : ""}</b></div>
+        <div class="kg">${x.kg != null ? fmt(x.kg) + " " + state.unit : "–"}</div>
+        <div class="muted">${x.b ? (x.days === 0 ? "vandaag" : x.days + " d") + " bespannen · " + (esc(x.b.snaar) || MAT[x.b.materiaal]) + (x.cal ? "" : " · geschat") : "geen bespanning"}</div>
+        <div>${x.st ? `<span class="chip ${x.st.cls}">${x.loss.toFixed(0)}%</span>` : ""}</div></div>`).join("") : `<p class="note" style="padding-bottom:12px">Nog geen rackets toegevoegd.</p>`}
+    </details>`).join("") : `<p class="note">${t ? "Geen leerling gevonden." : "Nog geen leerlingen. Geef hen de link en de clubcode."}</p>`;
+}
+
+/* ---------- start ---------- */
+async function boot(){
+  if (!CLOUD_CFG){ renderAll(); return; }
+  if (!window.supabase){ $("mine").hidden = true; $("btn-settings").hidden = true; $("auth").hidden = false; $("auth").innerHTML = `<h2>Geen verbinding</h2><p class="note">De app kon niet laden. Controleer je internet en vernieuw de pagina.</p>`; return; }
+  sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey);
+  sb.auth.onAuthStateChange((ev) => { if (ev === "PASSWORD_RECOVERY"){ authMode = "reset"; showAuth(); } });
+  $("mine").hidden = true;
+  const {data} = await sb.auth.getSession();
+  if (authMode === "reset") return;
+  if (data.session) await afterLogin(data.session.user); else showAuth();
+}
+boot();
+})();
+
+</script>
+</body>
+</html>
