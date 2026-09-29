@@ -217,6 +217,37 @@ details.tips ul{margin:0;padding-left:20px;display:flex;flex-direction:column;ga
 .stu-r{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:10px 12px;margin-bottom:8px;background:var(--surface-2);border-radius:10px}
 .stu-r .kg{font:700 20px/1 var(--display);text-align:right;font-variant-numeric:tabular-nums}
 .stu-r .muted{font-size:13px}
+.stats{grid-template-columns:repeat(auto-fit,minmax(72px,1fr))}
+.stat b{font-size:24px}
+.play{display:flex;flex-direction:column;gap:10px;border-top:1px solid var(--line);padding-top:12px}
+.play-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.play-head b{font:700 20px/1 var(--display)}
+.quick{display:flex;gap:8px;flex-wrap:wrap}
+.quick .btn{min-height:40px;padding:8px 12px;font-size:14px}
+.quick .btn.hit{background:var(--ball);border-color:var(--ball);color:var(--ball-ink)}
+.play-form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.play-form .field{flex:1 1 120px}
+.prog{display:flex;gap:12px;align-items:flex-start;border-radius:10px;padding:12px;background:var(--surface-2);border-left:4px solid var(--muted)}
+.prog.ok{border-left-color:var(--ok)} .prog.warn{border-left-color:var(--warn)} .prog.bad{border-left-color:var(--bad)}
+.prog b{display:block;font:700 19px/1.15 var(--display)}
+.prog .note{margin-top:2px}
+.ov{display:flex;flex-direction:column}
+.ov-row{display:grid;grid-template-columns:1fr auto;gap:2px 12px;align-items:center;padding:11px 10px;margin:0 -10px;border:0;border-top:1px solid var(--line);background:none;color:var(--ink);font:inherit;text-align:left;cursor:pointer;border-radius:8px}
+.ov-row:first-child{border-top:0}
+.ov-row:hover{background:var(--surface-2)}
+.ov-row[aria-current="true"]{background:var(--accent-soft)}
+.ov-row .nm{font-weight:700;font-size:16px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-row .kg{font:700 22px/1 var(--display);text-align:right;font-variant-numeric:tabular-nums}
+.ov-row .meta{font-size:13px;color:var(--muted)}
+.ov-row .when{font-size:13px;font-weight:700;text-align:right;white-space:nowrap}
+.when.ok{color:var(--ok)} .when.warn{color:var(--warn)} .when.bad{color:var(--bad)} .when.na{color:var(--muted);font-weight:600}
+ul.list li.sess{color:var(--muted)}
+ul.list li.sess .kg{font-weight:600;color:var(--ink)}
+.sess-ic{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--ball);box-shadow:0 0 0 1px rgba(0,0,0,.25);margin-right:6px;vertical-align:1px}
+.proj{stroke:var(--accent);stroke-width:2;stroke-dasharray:3 5;fill:none;opacity:.8}
+.limit-l{stroke:var(--bad);stroke-width:1;stroke-dasharray:6 4;opacity:.7}
+.limit-t{font:11px var(--mono);fill:var(--bad)}
+.sess-t{fill:var(--ball);stroke:var(--ink);stroke-width:.6}
 @media (prefers-reduced-motion:reduce){.ripple,.listen.live .dot{animation:none}.ripple{opacity:0}.marker{transition:none}}
 </style>
 </head>
@@ -272,6 +303,8 @@ details.tips ul{margin:0;padding-left:20px;display:flex;flex-direction:column;ga
     <button id="btn-clear" class="btn" type="button" disabled><svg class="i"><use href="#i-undo"/></svg>Wissen</button>
   </div>
   <button id="btn-demo" class="demo" type="button">Test met een gesimuleerde tik</button>
+
+  <section class="card" id="card-overview" hidden></section>
 
   <section class="card" id="panel-form" hidden></section>
   <section class="card" id="card-besp"></section>
@@ -404,12 +437,79 @@ function copyCal(src, srcR, dst){
   dst.k = src.k; dst.kFreq = src.kFreq;
   dst.kVan = {racket:rLabel(srcR), datum:new Date().toISOString().slice(0,10)};
 }
+const fmtKgR = v => (state.unit === "lbs" ? v * 2.20462 : v).toLocaleString("nl-BE", {maximumFractionDigits:2}) + " " + state.unit;
+const fmtH = h => (Math.round(h * 4) / 4).toLocaleString("nl-BE") + " u";
+const sessOf = b => (b.sessies || []).slice().sort((a, c) => new Date(a.datum) - new Date(c.datum));
+const hoursBetween = (b, t0, t1) => sessOf(b).reduce((s, x) => { const t = new Date(x.datum).getTime(); return t > t0 && t <= t1 ? s + x.uren : s; }, 0);
+// Tension model: loss per day from time plus loss per played hour, fitted on consecutive measurements.
+function model(r, b, grens){
+  grens = grens || 20;
+  const out = {kg:null, ref:null, loss:null, st:null, hours:0, nSess:0, perWeek:0, perDay:null, perHour:null, daily:null, days:null, date:null, basis:"", limit:null, rough:false};
+  if (!r || !b) return out;
+  const ss = sessOf(b), now = Date.now(), t0 = new Date(b.datum + "T00:00:00").getTime();
+  out.hours = ss.reduce((s, x) => s + x.uren, 0); out.nSess = ss.length;
+  // play rate: counted from the first logged session, so days before you started logging don't dilute it
+  const first = ss.length ? new Date(ss[0].datum).getTime() : now;
+  const win = Math.min(28, Math.max(7, (now - first) / 864e5));
+  out.perWeek = ss.filter(x => now - new Date(x.datum).getTime() <= win * 864e5).reduce((s, x) => s + x.uren, 0) / win * 7;
+  const ms = sortedM(b);
+  if (!ms.length) return out;
+  const last = ms[ms.length-1], tl = new Date(last.datum).getTime();
+  out.kg = kgOf(r, b, last.freq); out.ref = refKg(r, b);
+  if (out.ref){ out.loss = Math.max(0, (out.ref - out.kg) / out.ref * 100); out.st = status(out.loss, grens); out.limit = out.ref * (1 - grens / 100); }
+  // intervals between consecutive measurements
+  let iv = [];
+  for (let i = 1; i < ms.length; i++){
+    const a = new Date(ms[i-1].datum).getTime(), c = new Date(ms[i].datum).getTime(), dd = (c - a) / 864e5;
+    if (dd < 0.04) continue;
+    iv.push({start:(a - t0) / 864e5, d:dd, h:hoursBetween(b, a, c), y:kgOf(r, b, ms[i-1].freq) - kgOf(r, b, ms[i].freq)});
+  }
+  const settled = iv.filter(x => x.start >= 1);
+  if (settled.length) iv = settled;           // skip the steep first 24 h when later data exists
+  let a = null, c = null;
+  const withH = iv.filter(x => x.h > 0).length, noH = iv.length - withH;
+  if (iv.length >= 2 && withH && noH){
+    let Sdd = 0, Shh = 0, Sdh = 0, Sdy = 0, Shy = 0;
+    iv.forEach(x => { Sdd += x.d*x.d; Shh += x.h*x.h; Sdh += x.d*x.h; Sdy += x.d*x.y; Shy += x.h*x.y; });
+    const det = Sdd * Shh - Sdh * Sdh;
+    if (det > 1e-9){ a = (Sdy * Shh - Shy * Sdh) / det; c = (Shy * Sdd - Sdy * Sdh) / det; }
+    if (a == null || a < 0 || c < 0){
+      if (a != null && a < 0){ a = 0; c = Math.max(0, Shy / Shh); }
+      else if (c != null && c < 0){ c = 0; a = Math.max(0, Sdy / Sdd); }
+    }
+  }
+  if (a == null && iv.length){
+    const sd = iv.reduce((s, x) => s + x.d, 0), sy = iv.reduce((s, x) => s + x.y, 0);
+    a = Math.max(0, sy / sd);                  // play is folded into the daily rate
+    out.basis = withH ? "gemiddelde van je metingen, spelen inbegrepen" : "je metingen";
+  } else if (a != null) out.basis = "je metingen en speelsessies";
+  if (out.limit && out.kg <= out.limit){ out.days = 0; out.date = new Date(now); }
+  if (a == null) return out;
+  out.perDay = a; out.perHour = c;
+  out.daily = a + (c || 0) * out.perWeek / 7;
+  if (!out.limit) return out;
+  if (out.days === 0){}
+  else if (out.daily < 0.005){ out.days = Infinity; }
+  else out.days = Math.max(0, (out.kg - out.limit) / out.daily - (now - tl) / 864e5);
+  if (isFinite(out.days)) out.date = new Date(now + out.days * 864e5);
+  return out;
+}
+function progText(m){
+  if (m.days == null) return null;
+  if (m.days === 0) return {cls:"bad", head:"Nu herbespannen", short:"nu"};
+  if (!isFinite(m.days) || m.days > 90) return {cls:"ok", head:"Geen herbespanning in zicht", short:"> 3 mnd"};
+  const n = Math.round(m.days), cls = n <= 7 ? "warn" : "ok";
+  const dt = m.date.toLocaleDateString("nl-BE", {day:"numeric", month:"short"});
+  return {cls, head: n <= 1 ? "Herbespannen binnen een dag" : `Herbespannen over ongeveer ${n} dagen`, sub:"rond " + dt, short: n <= 1 ? "≤ 1 d" : "~" + n + " d"};
+}
 const disp = kg => state.unit === "lbs" ? kg * 2.20462 : kg;
 const fmt = kg => kg == null ? "–" : disp(kg).toFixed(1);
-function status(loss){
+const grensOf = st => (st && st.grens) || 20;
+function status(loss, grens){
   if (loss == null) return null;
-  if (loss < 10) return {cls:"ok", txt:"Goed"};
-  if (loss < 20) return {cls:"warn", txt:"Let op"};
+  const g = grens || grensOf(state);
+  if (loss < Math.max(5, g - 10)) return {cls:"ok", txt:"Goed"};
+  if (loss < g) return {cls:"warn", txt:"Let op"};
   return {cls:"bad", txt:"Herbespannen"};
 }
 const daysSince = (b, iso) => (new Date(iso) - new Date(b.datum + "T00:00:00")) / 864e5;
@@ -652,8 +752,10 @@ function renderBesp(){
   const d = new Date(b.datum + "T00:00:00"), ago = Math.max(0, Math.floor((Date.now() - d) / 864e5));
   const ms = sortedM(b), lastKg = ms.length ? kgOf(r, b, ms[ms.length-1].freq) : null, ref = refKg(r, b);
   const loss = lastKg != null && ref ? Math.max(0, (ref - lastKg) / ref * 100) : null, st = status(loss);
+  const M = model(r, b, grensOf(state)), P = progText(M);
   const stats = `<div class="stats">
       <div class="stat"><b>${ago}</b><span>${ago === 1 ? "dag" : "dagen"} oud</span></div>
+      <div class="stat"><b>${(Math.round(M.hours * 4) / 4).toLocaleString("nl-BE")}</b><span>uur gespeeld</span></div>
       <div class="stat"><b>${lastKg != null ? fmt(lastKg) : "–"}</b><span>laatste (${state.unit})</span></div>
       <div class="stat ${st ? st.cls : ""}"><b>${loss != null ? loss.toFixed(0) + "%" : "–"}</b><span>${b.k && b.machineKg ? "verlies" : "sinds 1e meting"}</span></div></div>`;
   let cal;
@@ -664,8 +766,10 @@ function renderBesp(){
     cal = `<div class="cal">${icon("target")}<div><p class="note">Kalibratie overgenomen van ${esc(b.kVan.racket)} (zelfde racket en snaar). Waarden staan in dezelfde maat als je machine-instelling.</p>
       <div class="row">${b.machineKg ? `<button class="btn small" id="btn-cal" type="button">Zelf kalibreren</button>` : ""}<button class="btn small ghost" id="btn-uncal" type="button">Kalibratie wissen</button></div></div></div>`;
   } else if (b.k){
-    const targets = sib.filter(x => !(x.b.k && !x.b.kVan));
+    const targets = sib.filter(x => !(x.b.k && !x.b.kVan) && !(x.b.kVan && x.b.k === b.k));
+    const shared = sib.filter(x => x.b.kVan && x.b.k === b.k);
     cal = `<div class="cal">${icon("target")}<div><p class="note">Gekalibreerd op ${b.kFreq.toFixed(0)} Hz. Metingen tonen de spanning in dezelfde maat als je machine-instelling.</p>
+      ${shared.length ? `<p class="note">Ook gebruikt door ${shared.map(x => esc(rLabel(x.r))).join(", ")}.</p>` : ""}
       ${targets.length ? `<p class="note"><b>Ook toepassen op:</b> ${targets.map(x => esc(rLabel(x.r))).join(", ")}</p>${snaarNote(targets)}` : ""}
       <div class="row">${targets.length ? `<button class="btn small primary" id="btn-cal-share" type="button">Toepassen op ${targets.length === 1 ? "dit racket" : "deze " + targets.length}</button>` : ""}
       ${b.machineKg ? `<button class="btn small" id="btn-cal" type="button">Opnieuw kalibreren</button>` : ""}<button class="btn small ghost" id="btn-uncal" type="button">Kalibratie wissen</button></div></div></div>`;
@@ -677,15 +781,29 @@ function renderBesp(){
       ? `<div class="cal">${icon("target")}<div><p class="note">Meet meteen na het bespannen en kalibreer. Daarna toont de app de spanning in dezelfde maat als je machine-instelling.</p><div class="row"><button class="btn small primary" id="btn-cal" type="button">Kalibreer met huidige meting</button></div>${take}</div></div>`
       : `<div class="cal">${icon("target")}<div><p class="note">Vul de spanning van de bespanning in via Bewerken om zelf te kalibreren.</p>${take}</div></div>`;
   }
+  const rate = M.perDay == null ? "" : M.perHour != null
+    ? `Verlies: ${fmtKgR(M.perDay)} per dag en ${fmtKgR(M.perHour)} per speeluur.`
+    : `Verlies: ongeveer ${fmtKgR(M.daily)} per dag.`;
+  const prog = P ? `<div class="prog ${P.cls}"><div><b>${P.head}</b>
+      <p class="note">${P.sub ? P.sub + ". " : ""}${rate} Grens: ${grensOf(state)}% verlies${M.perWeek ? `, bij ${fmtH(M.perWeek)} spelen per week` : ""}. Op basis van ${M.basis}.</p></div></div>`
+    : `<div class="prog"><div><b>Nog geen voorspelling</b><p class="note">${ms.length < 2 ? "Meet na je volgende training of over een paar dagen opnieuw. Vanaf twee metingen voorspelt de app wanneer je moet herbespannen." : "Meet over een paar dagen opnieuw, dan kan de app het verloop inschatten."}</p></div></div>`;
+  const play = `<div class="play"><div class="play-head"><span class="lbl">Speelsessies</span><span class="muted" style="font-size:14px">${M.nSess ? `${M.nSess} ${M.nSess === 1 ? "sessie" : "sessies"}${M.perWeek ? " · ~" + fmtH(M.perWeek) + " per week" : ""}` : "nog geen"}</span></div>
+      <div class="quick" role="group" aria-label="Speelsessie toevoegen">${[1, 1.5, 2].map(h => `<button class="btn" type="button" data-play="${h}">+ ${fmtH(h)}</button>`).join("")}<button class="btn ghost" type="button" id="btn-play-other">Andere…</button></div>
+      <form class="play-form" id="f-play" hidden>
+        <div class="field"><label for="p-datum">Datum</label><input id="p-datum" type="date" required value="${isoDay(new Date())}" max="${isoDay(new Date())}"></div>
+        <div class="field"><label for="p-uren">Uren</label><input id="p-uren" type="number" min="0.25" max="8" step="0.25" value="1.5" required></div>
+        <button class="btn primary" type="submit">Toevoegen</button></form>
+      <p class="note">Tik na elke training op de duur. Zo leert de app hoeveel spanning spelen kost.</p></div>`;
   el.innerHTML = head + `<div class="card-head"><span class="lbl">Huidige bespanning</span>
       <div class="row"><button class="btn small ghost" id="btn-edit-besp" type="button">Bewerken</button><button class="btn small" id="btn-new-besp" type="button">Nieuwe bespanning</button></div></div>
     ${stats}
+    ${prog}
     <dl class="facts">
       <dt>Bespannen op</dt><dd>${d.toLocaleDateString("nl-BE", {day:"numeric", month:"long", year:"numeric"})}</dd>
       <dt>Snaar</dt><dd>${esc(b.snaar) || "–"}</dd>
       <dt>Materiaal</dt><dd>${MAT[b.materiaal]} · ${b.dikte.toFixed(2)} mm</dd>
       <dt>Spanning</dt><dd>${b.machineKg ? fmt(b.machineKg) + " " + state.unit : "onbekend"}</dd>
-    </dl>${cal}`;
+    </dl>${cal}${play}`;
   bindBesp();
 }
 function bindBesp(){
@@ -714,6 +832,16 @@ function bindBesp(){
     b.metingen.push({id:uid(), datum:new Date().toISOString(), freq:f});
     taps = []; save(); renderAll(); flash("Gekalibreerd en meting opgeslagen.");
   });
+  document.querySelectorAll("#card-besp [data-play]").forEach(btn => btn.onclick = () => addSession(+btn.dataset.play, new Date().toISOString()));
+  on("btn-play-other", () => { const f = $("f-play"); f.hidden = !f.hidden; if (!f.hidden) $("p-uren").focus(); });
+  const fp = $("f-play");
+  if (fp) fp.onsubmit = e => {
+    e.preventDefault();
+    const d = $("p-datum").value, h = +$("p-uren").value;
+    if (!d || !(h > 0)) return;
+    const t = d === isoDay(new Date()) ? new Date() : new Date(d + "T20:00:00");
+    addSession(h, t.toISOString());
+  };
   on("btn-uncal", () => { const {b} = cur(); delete b.k; delete b.kFreq; delete b.kVan; save(); renderAll(); });
   on("btn-cal-share", () => {
     const {r, b} = cur(), targets = siblings(r, b).filter(x => !(x.b.k && !x.b.kVan));
@@ -726,6 +854,11 @@ function bindBesp(){
     copyCal(src, srcR, b); save(); renderAll(); flash("Kalibratie overgenomen van " + rLabel(srcR) + ".");
   });
 }
+function addSession(h, iso){
+  const {r, b} = cur(); if (!b) return;
+  (b.sessies = b.sessies || []).push({id:uid(), datum:iso, uren:h});
+  save(); renderAll(); flash(fmtH(h) + " spelen toegevoegd aan " + rLabel(r) + ".");
+}
 function confirmBtn(btn, txt, fn){
   if (btn.dataset.armed){ fn(); return; }
   const old = btn.textContent; btn.dataset.armed = "1"; btn.textContent = txt;
@@ -733,13 +866,22 @@ function confirmBtn(btn, txt, fn){
 }
 function renderHistory(){
   const {r, b} = cur(), chart = $("chart"), list = $("list");
-  if (!r || !b || !b.metingen.length){ chart.innerHTML = `<p class="note">Nog geen metingen voor deze bespanning.</p>`; list.innerHTML = ""; $("h-sub").textContent = ""; return; }
-  const ms = sortedM(b), pts = ms.map(m => ({x:Math.max(0, daysSince(b, m.datum)), y:disp(kgOf(r, b, m.freq))}));
+  if (!r || !b || (!b.metingen.length && !(b.sessies || []).length)){ chart.innerHTML = `<p class="note">Nog geen metingen voor deze bespanning.</p>`; list.innerHTML = ""; $("h-sub").textContent = ""; return; }
+  const M = model(r, b, grensOf(state)), ss = sessOf(b);
+  if (!b.metingen.length){ chart.innerHTML = `<p class="note">Nog geen metingen voor deze bespanning.</p>`; }
+  const ms = sortedM(b);
+  if (ms.length){
+  const pts = ms.map(m => ({x:Math.max(0, daysSince(b, m.datum)), y:disp(kgOf(r, b, m.freq))}));
   const ref = refKg(r, b), refD = ref != null ? disp(ref) : null;
   $("h-sub").textContent = `${state.unit} · ${b.k ? "gekalibreerd" : "geschat"}`;
   const W = 340, H = 190, L = 34, R = 14, T = 16, B = 28;
-  const xMax = Math.max(7, Math.ceil(Math.max(...pts.map(p => p.x))));
-  const ys = pts.map(p => p.y).concat(refD != null ? [refD] : []);
+  const lastX = Math.max(...pts.map(p => p.x)), nowX = Math.max(lastX, daysSince(b, new Date().toISOString()));
+  const limD = M.limit != null ? disp(M.limit) : null;
+  let projX = null;
+  if (M.daily != null && M.daily >= 0.005 && limD != null && M.kg > M.limit) projX = lastX + (M.kg - M.limit) / M.daily;
+  const showProj = projX != null && projX - lastX <= 60;
+  const xMax = Math.max(7, Math.ceil(showProj ? projX : nowX), Math.ceil(Math.max(0, ...ss.map(x => daysSince(b, x.datum)))));
+  const ys = pts.map(p => p.y).concat(refD != null ? [refD] : [], limD != null && (showProj || pts.some(p => p.y < limD + 2)) ? [limD] : []);
   let yMin = Math.floor(Math.min(...ys) - 0.8), yMax = Math.ceil(Math.max(...ys) + 0.8);
   const step = (yMax - yMin) > 16 ? 4 : (yMax - yMin) > 8 ? 2 : 1;
   yMin = Math.floor(yMin / step) * step; yMax = Math.ceil(yMax / step) * step;
@@ -749,21 +891,46 @@ function renderHistory(){
   const xs = xMax <= 14 ? [0, Math.round(xMax/2), xMax] : [0, Math.round(xMax/3), Math.round(2*xMax/3), xMax];
   xs.forEach(v => g += `<text class="ax" x="${X(v)}" y="${H-8}" text-anchor="middle">${v === 0 ? "dag 0" : v}</text>`);
   if (refD != null) g += `<line class="ref-l" x1="${L}" x2="${W-R}" y1="${Y(refD)}" y2="${Y(refD)}"/><text class="ax" x="${W-R}" y="${Y(refD)-5}" text-anchor="end">${b.k ? "bespanning" : "eerste meting"}</text>`;
+  if (limD != null && limD >= yMin) g += `<line class="limit-l" x1="${L}" x2="${W-R}" y1="${Y(limD)}" y2="${Y(limD)}"/><text class="limit-t" x="${L+4}" y="${Y(limD)-5}">grens ${grensOf(state)}%</text>`;
+  ss.forEach(x => { const sx = X(Math.max(0, daysSince(b, x.datum))); g += `<circle class="sess-t" cx="${sx}" cy="${H-B+1}" r="${Math.min(6, 2.5 + x.uren)}"><title>${fmtH(x.uren)} gespeeld</title></circle>`; });
   const line = pts.map(p => `${X(p.x).toFixed(1)},${Y(p.y).toFixed(1)}`).join(" ");
   if (pts.length > 1) g += `<polygon class="area" points="${X(pts[0].x)},${Y(yMin)} ${line} ${X(pts[pts.length-1].x)},${Y(yMin)}"/><polyline class="series" points="${line}"/>`;
   pts.forEach((p, i) => { const last = i === pts.length - 1; g += `<circle class="pt${last ? " last" : ""}" cx="${X(p.x)}" cy="${Y(p.y)}" r="${last ? 5 : 3.5}"/>`; });
   const lp = pts[pts.length-1];
+  if (showProj) g += `<line class="proj" x1="${X(lp.x)}" y1="${Y(lp.y)}" x2="${X(projX)}" y2="${Y(limD)}"/><circle cx="${X(projX)}" cy="${Y(limD)}" r="4" fill="var(--bad)"/>`;
   g += `<text class="val" x="${Math.min(X(lp.x), W-R-4)}" y="${Y(lp.y)+19}" text-anchor="end">${lp.y.toFixed(1)}</text>`;
-  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Spanning in ${state.unit} per dag sinds bespannen">${g}</svg>`;
-  list.innerHTML = ms.slice().reverse().map(m => {
-    const dd = Math.max(0, Math.floor(daysSince(b, m.datum)));
-    return `<li><span>${new Date(m.datum).toLocaleDateString("nl-BE", {day:"numeric", month:"short"})} <span class="mono">dag ${dd}</span></span>
-      <span class="mono">${m.freq.toFixed(0)} Hz</span><span class="kg">${fmt(kgOf(r, b, m.freq))} ${state.unit}</span>
-      <button class="x" type="button" data-del="${m.id}" aria-label="Meting verwijderen">${icon("x")}</button></li>`;
-  }).join("");
+  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Spanning in ${state.unit} per dag sinds bespannen${showProj ? ", met voorspelling tot de grens" : ""}">${g}</svg>`;
+  }
+  const items = ms.map(m => ({t:m.datum, m})).concat(ss.map(x => ({t:x.datum, s:x}))).sort((a, c) => new Date(c.t) - new Date(a.t));
+  const dLabel = iso => `${new Date(iso).toLocaleDateString("nl-BE", {day:"numeric", month:"short"})} <span class="mono">dag ${Math.max(0, Math.floor(daysSince(b, iso)))}</span>`;
+  list.innerHTML = items.map(it => it.m
+    ? `<li><span>${dLabel(it.t)}</span><span class="mono">${it.m.freq.toFixed(0)} Hz</span><span class="kg">${fmt(kgOf(r, b, it.m.freq))} ${state.unit}</span>
+      <button class="x" type="button" data-del="${it.m.id}" aria-label="Meting verwijderen">${icon("x")}</button></li>`
+    : `<li class="sess"><span>${dLabel(it.t)}</span><span class="mono"><span class="sess-ic" aria-hidden="true"></span>gespeeld</span><span class="kg">${fmtH(it.s.uren)}</span>
+      <button class="x" type="button" data-del-s="${it.s.id}" aria-label="Sessie verwijderen">${icon("x")}</button></li>`).join("");
   list.querySelectorAll("[data-del]").forEach(btn => btn.onclick = () => { b.metingen = b.metingen.filter(m => m.id !== btn.dataset.del); save(); renderAll(); });
+  list.querySelectorAll("[data-del-s]").forEach(btn => btn.onclick = () => { b.sessies = (b.sessies || []).filter(x => x.id !== btn.dataset.delS); save(); renderAll(); });
 }
-function renderAll(){ const {r} = cur(); renderHead(r); renderSwitch(); renderBesp(); renderHistory(); renderMeter(); }
+function renderOverview(){
+  const el = $("card-overview");
+  if (state.rackets.length < 2){ el.hidden = true; el.innerHTML = ""; return; }
+  const {r:sel} = cur(), g = grensOf(state);
+  const rows = state.rackets.map(r => { const b = lastB(r), M = model(r, b, g); return {r, b, M, P:progText(M)}; });
+  const key = x => x.M.days == null ? 1e6 + (x.M.loss != null ? 100 - x.M.loss : 200) : x.M.days;
+  rows.sort((a, c) => key(a) - key(c));
+  el.hidden = false;
+  el.innerHTML = `<div class="card-head"><h2>Je rackets</h2><span class="lbl">${state.unit} · grens ${g}%</span></div>
+    <div class="ov">${rows.map(x => {
+      const days = x.b ? Math.max(0, Math.floor((Date.now() - new Date(x.b.datum + "T00:00:00")) / 864e5)) : null;
+      const meta = x.b ? `${days} d bespannen${x.M.hours ? " · " + fmtH(x.M.hours) + " gespeeld" : ""}${x.b.k ? "" : " · geschat"}` : "geen bespanning";
+      const when = x.P ? `<span class="when ${x.P.cls}">${x.P.days === 0 || x.M.days === 0 ? "Nu herbespannen" : x.P.short === "> 3 mnd" ? "Geen haast" : "Herbespannen " + x.P.short}</span>` : `<span class="when na">${x.M.kg != null ? "Meet opnieuw" : "Nog niet gemeten"}</span>`;
+      return `<button class="ov-row" type="button" data-ov="${x.r.id}" aria-current="${sel && sel.id === x.r.id}">
+        <span class="nm">${esc(rLabel(x.r))}</span><span class="kg">${x.M.kg != null ? fmt(x.M.kg) : "–"}</span>
+        <span class="meta">${meta}${x.M.loss != null ? ` · <b class="when ${x.M.st.cls}">${x.M.loss.toFixed(0)}%</b>` : ""}</span>${when}</button>`;
+    }).join("")}</div>`;
+  el.querySelectorAll("[data-ov]").forEach(btn => btn.onclick = () => { state.sel = btn.dataset.ov; taps = []; save(); closeForm(); renderAll(); });
+}
+function renderAll(){ const {r} = cur(); renderHead(r); renderSwitch(); renderOverview(); renderBesp(); renderHistory(); renderMeter(); }
 
 /* ---------- forms ---------- */
 function showPanel(el){ el.hidden = false; el.scrollIntoView({behavior:reduced() ? "auto" : "smooth", block:"start"}); }
@@ -856,6 +1023,9 @@ function openSettings(){
   p.innerHTML = `<div class="card-head"><h2>Instellingen</h2><button class="btn small ghost" type="button" id="s-close">Sluiten</button></div>${acct}
     <div class="field"><span class="flabel">Eenheid</span><div class="seg" role="group" aria-label="Eenheid">
       <button type="button" data-u="kg" aria-pressed="${state.unit === "kg"}">kg</button><button type="button" data-u="lbs" aria-pressed="${state.unit === "lbs"}">lbs</button></div></div>
+    <div class="field"><label for="s-grens">Herbespannen bij</label>
+      <select id="s-grens">${[10, 15, 20, 25, 30].map(v => `<option value="${v}"${grensOf(state) === v ? " selected" : ""}>${v}% spanningsverlies</option>`).join("")}</select>
+      <span class="hint">Polyester speelt vaak al merkbaar anders na 15 à 20% verlies.</span></div>
     <div class="field"><span class="flabel">Back-up</span>
       <p class="note">${me ? "Je gegevens staan online in je account. Een extra back-up kan geen kwaad." : "Je gegevens staan alleen in deze browser op dit toestel. Kopieer af en toe een back-up, bijvoorbeeld naar je notities."}</p>
       <div class="row"><button class="btn small" type="button" id="s-copy">Back-up kopiëren</button></div></div>
@@ -863,6 +1033,7 @@ function openSettings(){
       <div class="row"><button class="btn small" type="button" id="s-restore">Terugzetten</button></div></div>`;
   p.querySelectorAll("[data-u]").forEach(btn => btn.onclick = () => { state.unit = btn.dataset.u; save(); p.hidden = true; openSettings(); renderAll(); });
   $("s-close").onclick = () => p.hidden = true;
+  $("s-grens").onchange = e => { state.grens = +e.target.value; save(); renderAll(); };
   if (me) $("s-logout").onclick = logout;
   $("s-copy").onclick = () => {
     const txt = JSON.stringify(state), ta = $("s-import");
@@ -1010,7 +1181,8 @@ function studentInfo(p, st){
     const loss = kg != null && ref ? Math.max(0, (ref - kg) / ref * 100) : null;
     const days = b ? Math.max(0, Math.floor((Date.now() - new Date(b.datum + "T00:00:00")) / 864e5)) : null;
     if (lm){ const d = new Date(lm.datum); if (!last || d > last) last = d; }
-    rows.push({r, b, kg, loss, st:status(loss), days, cal:!!(b && b.k)});
+    const M = b ? model(r, b, grensOf(st)) : null, P = M ? progText(M) : null;
+    rows.push({r, b, kg, loss, st:status(loss, grensOf(st)), days, cal:!!(b && b.k), P, hours:M ? M.hours : 0});
   });
   rows.sort((a, c) => (RANK[c.st && c.st.cls] || 0) - (RANK[a.st && a.st.cls] || 0));
   const worst = rows.length && rows[0].st ? rows[0].st : null;
@@ -1048,7 +1220,7 @@ function renderCoachList(q){
       ${s.rows.length ? s.rows.map(x => `<div class="stu-r">
         <div><b>${esc(x.r.naam)}${x.r.bijnaam ? " · " + esc(x.r.bijnaam) : ""}</b></div>
         <div class="kg">${x.kg != null ? fmt(x.kg) + " " + state.unit : "–"}</div>
-        <div class="muted">${x.b ? (x.days === 0 ? "vandaag" : x.days + " d") + " bespannen · " + (esc(x.b.snaar) || MAT[x.b.materiaal]) + (x.cal ? "" : " · geschat") : "geen bespanning"}</div>
+        <div class="muted">${x.b ? (x.days === 0 ? "vandaag" : x.days + " d") + " bespannen · " + (esc(x.b.snaar) || MAT[x.b.materiaal]) + (x.cal ? "" : " · geschat") + (x.hours ? " · " + fmtH(x.hours) + " gespeeld" : "") + (x.P ? ` · <b class="when ${x.P.cls}">${x.P.short === "nu" ? "nu herbespannen" : x.P.short === "> 3 mnd" ? "geen haast" : "herbespannen " + x.P.short}</b>` : "") : "geen bespanning"}</div>
         <div>${x.st ? `<span class="chip ${x.st.cls}">${x.loss.toFixed(0)}%</span>` : ""}</div></div>`).join("") : `<p class="note" style="padding-bottom:12px">Nog geen rackets toegevoegd.</p>`}
     </details>`).join("") : `<p class="note">${t ? "Geen leerling gevonden." : "Nog geen leerlingen. Geef hen de link en de clubcode."}</p>`;
 }
